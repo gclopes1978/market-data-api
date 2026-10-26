@@ -12,3 +12,6 @@ app.MapHealthChecks("/health");
 app.MapFx();
 
 app.Run();
+
+// Required by WebApplicationFactory<Program> in the test project
+public partial class Program { }
