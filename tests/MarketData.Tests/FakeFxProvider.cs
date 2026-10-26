@@ -6,6 +6,7 @@ public sealed class FakeFxProvider : IFxRateProvider
 {
     public FxRate? Result { get; set; }
     public Exception? Failure { get; set; }
+    public Func<CancellationToken, Task<FxRate?>>? Handler { get; set; }
     public int Calls { get; private set; }
     public string? LastBase { get; private set; }
     public string? LastQuote { get; private set; }
@@ -16,6 +17,9 @@ public sealed class FakeFxProvider : IFxRateProvider
         LastBase = baseCcy;
         LastQuote = quoteCcy;
 
+        if (Handler is not null)
+            return Handler(ct);
+
         return Failure is not null
             ? Task.FromException<FxRate?>(Failure)
             : Task.FromResult(Result);
@@ -25,6 +29,7 @@ public sealed class FakeFxProvider : IFxRateProvider
     {
         Result = null;
         Failure = null;
+        Handler = null;
         Calls = 0;
         LastBase = null;
         LastQuote = null;

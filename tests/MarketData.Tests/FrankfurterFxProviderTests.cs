@@ -20,6 +20,17 @@ public class FrankfurterFxProviderTests
         }
     }
 
+    private sealed class TimeoutHandler : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken ct)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            throw new InvalidOperationException("Unreachable");
+        }
+    }
+
     private static FrankfurterFxProvider Create(StubHandler handler) =>
         new(new HttpClient(handler) { BaseAddress = new Uri("https://example.test/v1/") });
 
@@ -64,5 +75,20 @@ public class FrankfurterFxProviderTests
 
         await Assert.ThrowsAsync<HttpRequestException>(() =>
             Create(handler).GetRateAsync("EUR", "USD", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task HttpClient_timeout_throws_cancellation_exception()
+    {
+        using var http = new HttpClient(new TimeoutHandler())
+        {
+            BaseAddress = new Uri("https://example.test/v1/"),
+            Timeout = TimeSpan.FromMilliseconds(100)
+        };
+
+        var provider = new FrankfurterFxProvider(http);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            provider.GetRateAsync("EUR", "USD", CancellationToken.None));
     }
 }
