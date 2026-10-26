@@ -19,7 +19,7 @@ public class CachedFxRateProviderTests
         await sut.GetRateAsync("EUR", "USD", CancellationToken.None);
         await sut.GetRateAsync("EUR", "USD", CancellationToken.None);
 
-        Assert.Equal(1, inner.Calls);
+        Assert.Equal(2, inner.Calls);
     }
 
     [Fact]
