@@ -74,12 +74,37 @@ public sealed class FxEndpointTests(ApiFactory factory) : IClassFixture<ApiFacto
     }
 
     [Fact]
+    public async Task Caller_cancellation_is_propagated_instead_of_returning_504()
+    {
+        factory.Fx.Reset();
+
+        var providerStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        factory.Fx.Handler = async ct =>
+        {
+            providerStarted.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            return null;
+        };
+
+        using var cts = new CancellationTokenSource();
+        var request = _client.GetAsync("/api/fx/EUR/USD", cts.Token);
+
+        await providerStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => request);
+        Assert.Equal(1, factory.Fx.Calls);
+    }
+    [Fact]
     public async Task Health_endpoint_is_healthy()
     {
         var resp = await _client.GetAsync("/health");
 
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
     }
+
     [Fact]
     public async Task Returns_502_problem_details_when_provider_fails()
     {
@@ -130,5 +155,6 @@ public sealed class FxEndpointTests(ApiFactory factory) : IClassFixture<ApiFacto
         Assert.Equal("Exchange rate provider timed out", problem.Title);
         Assert.DoesNotContain("Sensitive timeout details", problem.Detail ?? string.Empty);
     }
+
     private sealed record ProblemDetailsResponse(int Status, string Title, string Detail);
 }
