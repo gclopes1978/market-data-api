@@ -15,7 +15,10 @@ public static class ServiceCollectionExtensions
 
         // The concrete provider gets a typed HttpClient; consumers only see IFxRateProvider
         services.AddHttpClient<FrankfurterFxProvider>((sp, http) =>
-            http.BaseAddress = new Uri(sp.GetRequiredService<IOptions<FrankfurterOptions>>().Value.BaseUrl));
+        {
+            http.BaseAddress = new Uri(sp.GetRequiredService<IOptions<FrankfurterOptions>>().Value.BaseUrl);
+            http.Timeout = TimeSpan.FromSeconds(5);
+        });
 
         // Composition of the decorator chain lives here, not in the host
         services.AddScoped<IFxRateProvider>(sp => new CachedFxRateProvider(
