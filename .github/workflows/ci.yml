@@ -28,3 +28,42 @@ jobs:
 
       - name: Test
         run: dotnet test --no-build -c Release
+
+  docker-smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build --tag market-data-api:smoke .
+
+      - name: Start container
+        run: docker run --detach --name market-data-api-smoke --publish 127.0.0.1:18080:8080 market-data-api:smoke
+
+      - name: Smoke test health endpoint
+        shell: bash
+        run: |
+          for attempt in {1..30}; do
+            if ! docker inspect --format='{{.State.Running}}' market-data-api-smoke | grep -q '^true$'; then
+              echo "Container stopped unexpectedly."
+              exit 1
+            fi
+
+            if curl --fail --silent --show-error http://127.0.0.1:18080/health > /dev/null; then
+              echo "Health endpoint returned HTTP 200."
+              exit 0
+            fi
+
+            sleep 2
+          done
+
+          echo "Health endpoint did not return HTTP 200 within 60 seconds."
+          exit 1
+
+      - name: Show container logs on failure
+        if: failure()
+        run: docker logs market-data-api-smoke || true
+
+      - name: Remove container
+        if: always()
+        run: docker rm --force market-data-api-smoke || true
