@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using MarketData.Core;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -79,6 +80,55 @@ public sealed class FxEndpointTests(ApiFactory factory) : IClassFixture<ApiFacto
 
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
     }
+    [Fact]
+    public async Task Returns_502_problem_details_when_provider_fails()
+    {
+        factory.Fx.Reset();
+        factory.Fx.Failure = new HttpRequestException("Sensitive upstream details");
 
-    private sealed record ProblemDetailsResponse(int Status, string Title, string? Detail);
+        var resp = await _client.GetAsync("/api/fx/EUR/USD");
+        var problem = await resp.Content.ReadFromJsonAsync<ProblemDetailsResponse>();
+
+        Assert.Equal(HttpStatusCode.BadGateway, resp.StatusCode);
+        Assert.Equal("application/problem+json", resp.Content.Headers.ContentType?.MediaType);
+        Assert.NotNull(problem);
+        Assert.Equal(502, problem.Status);
+        Assert.Equal("Exchange rate provider unavailable", problem.Title);
+        Assert.DoesNotContain("Sensitive upstream details", problem.Detail ?? string.Empty);
+    }
+
+    [Fact]
+    public async Task Returns_502_problem_details_when_provider_response_is_invalid()
+    {
+        factory.Fx.Reset();
+        factory.Fx.Failure = new JsonException("Sensitive JSON details");
+
+        var resp = await _client.GetAsync("/api/fx/EUR/USD");
+        var problem = await resp.Content.ReadFromJsonAsync<ProblemDetailsResponse>();
+
+        Assert.Equal(HttpStatusCode.BadGateway, resp.StatusCode);
+        Assert.Equal("application/problem+json", resp.Content.Headers.ContentType?.MediaType);
+        Assert.NotNull(problem);
+        Assert.Equal(502, problem.Status);
+        Assert.Equal("Invalid exchange rate provider response", problem.Title);
+        Assert.DoesNotContain("Sensitive JSON details", problem.Detail ?? string.Empty);
+    }
+
+    [Fact]
+    public async Task Returns_504_problem_details_when_provider_times_out()
+    {
+        factory.Fx.Reset();
+        factory.Fx.Failure = new OperationCanceledException("Sensitive timeout details");
+
+        var resp = await _client.GetAsync("/api/fx/EUR/USD");
+        var problem = await resp.Content.ReadFromJsonAsync<ProblemDetailsResponse>();
+
+        Assert.Equal(HttpStatusCode.GatewayTimeout, resp.StatusCode);
+        Assert.Equal("application/problem+json", resp.Content.Headers.ContentType?.MediaType);
+        Assert.NotNull(problem);
+        Assert.Equal(504, problem.Status);
+        Assert.Equal("Exchange rate provider timed out", problem.Title);
+        Assert.DoesNotContain("Sensitive timeout details", problem.Detail ?? string.Empty);
+    }
+    private sealed record ProblemDetailsResponse(int Status, string Title, string Detail);
 }

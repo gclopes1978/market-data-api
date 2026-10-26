@@ -5,6 +5,7 @@ namespace MarketData.Tests;
 public sealed class FakeFxProvider : IFxRateProvider
 {
     public FxRate? Result { get; set; }
+    public Exception? Failure { get; set; }
     public int Calls { get; private set; }
     public string? LastBase { get; private set; }
     public string? LastQuote { get; private set; }
@@ -14,12 +15,16 @@ public sealed class FakeFxProvider : IFxRateProvider
         Calls++;
         LastBase = baseCcy;
         LastQuote = quoteCcy;
-        return Task.FromResult(Result);
+
+        return Failure is not null
+            ? Task.FromException<FxRate?>(Failure)
+            : Task.FromResult(Result);
     }
 
     public void Reset()
     {
         Result = null;
+        Failure = null;
         Calls = 0;
         LastBase = null;
         LastQuote = null;

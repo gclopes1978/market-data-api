@@ -49,6 +49,15 @@ public class FrankfurterFxProviderTests
     }
 
     [Fact]
+    public async Task Invalid_json_response_throws_instead_of_returning_null()
+    {
+        var handler = new StubHandler(HttpStatusCode.OK, "{ invalid json");
+
+        await Assert.ThrowsAsync<System.Text.Json.JsonException>(() =>
+            Create(handler).GetRateAsync("EUR", "USD", CancellationToken.None));
+    }
+
+    [Fact]
     public async Task Upstream_server_error_is_not_swallowed()
     {
         var handler = new StubHandler(HttpStatusCode.InternalServerError, "{}");
