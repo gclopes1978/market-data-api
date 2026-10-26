@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using MarketData.Core;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -38,26 +39,36 @@ public sealed class FxEndpointTests(ApiFactory factory) : IClassFixture<ApiFacto
     }
 
     [Fact]
-    public async Task Returns_404_when_provider_has_no_rate()
+    public async Task Returns_404_problem_details_when_provider_has_no_rate()
     {
         factory.Fx.Reset();
 
         var resp = await _client.GetAsync("/api/fx/EUR/XXX");
+        var problem = await resp.Content.ReadFromJsonAsync<ProblemDetailsResponse>();
 
         Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
+        Assert.Equal("application/problem+json", resp.Content.Headers.ContentType?.MediaType);
+        Assert.NotNull(problem);
+        Assert.Equal(404, problem.Status);
+        Assert.Equal("Exchange rate not found", problem.Title);
     }
 
     [Theory]
     [InlineData("/api/fx/EU/USD")]
     [InlineData("/api/fx/EUR/US1")]
     [InlineData("/api/fx/EURO/USD")]
-    public async Task Returns_400_for_invalid_codes_without_calling_provider(string url)
+    public async Task Returns_400_problem_details_for_invalid_codes_without_calling_provider(string url)
     {
         factory.Fx.Reset();
 
         var resp = await _client.GetAsync(url);
+        var problem = await resp.Content.ReadFromJsonAsync<ProblemDetailsResponse>();
 
         Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+        Assert.Equal("application/problem+json", resp.Content.Headers.ContentType?.MediaType);
+        Assert.NotNull(problem);
+        Assert.Equal(400, problem.Status);
+        Assert.Equal("Invalid currency code", problem.Title);
         Assert.Equal(0, factory.Fx.Calls);
     }
 
@@ -68,4 +79,6 @@ public sealed class FxEndpointTests(ApiFactory factory) : IClassFixture<ApiFacto
 
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
     }
+
+    private sealed record ProblemDetailsResponse(int Status, string Title, string? Detail);
 }

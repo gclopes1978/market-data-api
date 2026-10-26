@@ -17,9 +17,20 @@ public static class FxEndpoints
         // Validate input before it reaches the upstream URL
         static bool IsCode(string s) => s.Length == 3 && s.All(char.IsAsciiLetter);
         if (!IsCode(baseCcy) || !IsCode(quoteCcy))
-            return Results.BadRequest("Use 3-letter currency codes.");
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Invalid currency code",
+                detail: "Use 3-letter currency codes.");
+        }
 
         var rate = await fx.GetRateAsync(baseCcy.ToUpperInvariant(), quoteCcy.ToUpperInvariant(), ct);
-        return rate is null ? Results.NotFound() : Results.Ok(rate);
+
+        return rate is null
+            ? Results.Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Exchange rate not found",
+                detail: "No exchange rate was found for the requested currency pair.")
+            : Results.Ok(rate);
     }
 }
