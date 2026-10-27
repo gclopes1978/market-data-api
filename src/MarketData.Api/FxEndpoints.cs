@@ -1,6 +1,7 @@
+using MarketData.Core;
+using Microsoft.AspNetCore.Mvc;
 using System.Net;
 using System.Text.Json;
-using MarketData.Core;
 
 namespace MarketData.Api;
 
@@ -13,8 +14,7 @@ public static class FxEndpoints
         return app;
     }
 
-    private static async Task<IResult> GetRate(
-        string baseCcy, string quoteCcy, IFxRateProvider fx, CancellationToken ct)
+    private static async Task<IResult> GetRate(string baseCcy, string quoteCcy, [FromServices] IFxRateProvider fx, CancellationToken ct)
     {
         // Validate input before it reaches the upstream URL
         static bool IsCode(string s) => s.Length == 3 && s.All(char.IsAsciiLetter);
