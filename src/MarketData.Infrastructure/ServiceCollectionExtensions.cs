@@ -8,22 +8,58 @@ namespace MarketData.Infrastructure;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddFxProviders(this IServiceCollection services, IConfiguration config)
+    public static IServiceCollection AddFxProviders(
+        this IServiceCollection services, IConfiguration config)
     {
         services.AddMemoryCache();
-        services.AddOptions<FrankfurterOptions>().Bind(config.GetSection(FrankfurterOptions.Section));
+        services.AddOptions<FrankfurterOptions>()
+            .Bind(config.GetSection(FrankfurterOptions.Section));
 
-        // The concrete provider gets a typed HttpClient; consumers only see IFxRateProvider
         services.AddHttpClient<FrankfurterFxProvider>((sp, http) =>
         {
-            http.BaseAddress = new Uri(sp.GetRequiredService<IOptions<FrankfurterOptions>>().Value.BaseUrl);
+            http.BaseAddress = new Uri(
+                sp.GetRequiredService<IOptions<FrankfurterOptions>>()
+                    .Value.BaseUrl);
             http.Timeout = TimeSpan.FromSeconds(5);
         });
 
-        // Composition of the decorator chain lives here, not in the host
         services.AddScoped<IFxRateProvider>(sp => new CachedFxRateProvider(
             sp.GetRequiredService<FrankfurterFxProvider>(),
             sp.GetRequiredService<IMemoryCache>()));
+
+        return services;
+    }
+
+    public static IServiceCollection AddMarketDataProviders(
+        this IServiceCollection services)
+    {
+        services.AddHttpClient<IEuriborRateProvider, EcbEuriborRateProvider>(
+        http =>
+        {
+            http.BaseAddress = new Uri(
+                "https://data-api.ecb.europa.eu/service/");
+            http.Timeout = TimeSpan.FromSeconds(10);
+            http.DefaultRequestHeaders.Accept.ParseAdd("text/csv");
+        });
+
+        services.AddHttpClient<YahooFinanceClient>(http =>
+        {
+            http.BaseAddress = new Uri("https://query1.finance.yahoo.com/");
+            http.Timeout = TimeSpan.FromSeconds(5);
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("MarketDataApi/1.0");
+            http.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+        });
+
+        services.AddTransient<IEquityQuoteProvider, YahooEquityQuoteProvider>();
+        services.AddTransient<ICommodityQuoteProvider, YahooCommodityQuoteProvider>();
+
+        services.AddHttpClient<IBondQuoteProvider, TreasuryBondQuoteProvider>(
+            http =>
+            {
+                http.BaseAddress = new Uri("https://home.treasury.gov/");
+                http.Timeout = TimeSpan.FromSeconds(5);
+                http.DefaultRequestHeaders.Accept.ParseAdd("application/xml");
+            });
 
         return services;
     }
