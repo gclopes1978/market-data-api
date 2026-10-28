@@ -53,13 +53,25 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IEquityQuoteProvider, YahooEquityQuoteProvider>();
         services.AddTransient<ICommodityQuoteProvider, YahooCommodityQuoteProvider>();
 
-        services.AddHttpClient<IBondQuoteProvider, TreasuryBondQuoteProvider>(
+        // One typed HTTP client per bond source; the composite below routes each market to its source.
+        services.AddHttpClient<TreasuryBondQuoteProvider>(
             http =>
             {
                 http.BaseAddress = new Uri("https://home.treasury.gov/");
                 http.Timeout = TimeSpan.FromSeconds(5);
                 http.DefaultRequestHeaders.Accept.ParseAdd("application/xml");
             });
+
+        services.AddHttpClient<EcbBondQuoteProvider>(
+            http =>
+            {
+                http.BaseAddress = new Uri(
+                    "https://data-api.ecb.europa.eu/service/");
+                http.Timeout = TimeSpan.FromSeconds(10);
+                http.DefaultRequestHeaders.Accept.ParseAdd("text/csv");
+            });
+
+        services.AddTransient<IBondQuoteProvider, CompositeBondQuoteProvider>();
 
         return services;
     }

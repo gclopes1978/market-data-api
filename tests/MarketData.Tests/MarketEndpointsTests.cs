@@ -182,12 +182,28 @@ public sealed class MarketEndpointsTests(
     }
 
     [Fact]
-    public async Task NonUsBondMarket_Returns503()
+    public async Task GlobalBondMarket_Returns503()
     {
+        // GLOBAL is a valid market name but has no provider yet.
         using var client = CreateTestClient();
-        using var response = await client.GetAsync("/api/bonds/EUR/US10Y");
+        using var response = await client.GetAsync("/api/bonds/GLOBAL/US10Y");
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("/api/bonds/US/US1Y")]
+    [InlineData("/api/bonds/US/US7Y")]
+    [InlineData("/api/bonds/US/US20Y")]
+    [InlineData("/api/bonds/EUR/EUR10Y")]
+    [InlineData("/api/bonds/EUR/EUR3M")]
+    public async Task SupportedBondMaturity_Returns200(string path)
+    {
+        // US1Y and US7Y used to be rejected by mistake; EUR is served by the ECB provider.
+        using var client = CreateTestClient();
+        using var response = await client.GetAsync(path);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
@@ -206,6 +222,8 @@ public sealed class MarketEndpointsTests(
     [InlineData("/api/bonds/INVALID/US10Y")]
     [InlineData("/api/bonds/EUR/bad_symbol!")]
     [InlineData("/api/bonds/US/US4Y")]
+    [InlineData("/api/bonds/EUR/US10Y")]
+    [InlineData("/api/bonds/EUR/EUR4Y")]
     [InlineData("/api/stocks/MSFT!")]
     [InlineData("/api/etfs/SPY!")]
     [InlineData("/api/commodities/XAU!")]

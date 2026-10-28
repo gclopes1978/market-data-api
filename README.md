@@ -19,6 +19,10 @@ This is an R&D proof of concept, built to explore a Docker-first workflow that i
 | Method | Path | Description |
 |---|---|---|
 | GET | `/api/fx/{base}/{quote}` | Latest rate for a currency pair |
+| GET | `/api/euribor/{tenor}` | Euribor monthly average (`1M`, `3M`, `6M`, `12M`) |
+| GET | `/api/bonds/{market}/{identifier}` | Government bond yield. `US`: `US1M`...`US30Y` (U.S. Treasury). `EUR`: `EUR3M`...`EUR30Y` (ECB euro area AAA yield curve, a fitted curve rather than a single bond). `GLOBAL` has no provider yet (503) |
+| GET | `/api/stocks/{ticker}`, `/api/etfs/{ticker}` | Quote for a stock or ETF (Yahoo Finance symbols, e.g. `AAPL`, `SPY`, `VWCE.DE`) |
+| GET | `/api/commodities/{symbol}` | Commodity futures quote |
 | GET | `/health` | Liveness check |
 
 Status codes: `200` rate found, `400` currency codes are not 3 letters, `404` unknown currency.
