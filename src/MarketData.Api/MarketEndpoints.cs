@@ -20,7 +20,22 @@ public static class MarketEndpoints
         {
             "EUR", "US", "GLOBAL"
         };
-    private static readonly string[] sourceArray = ["US2Y", "US5Y", "US10Y", "US30Y"];
+
+    // Maturities each bond market accepts. They mirror what the providers can actually serve:
+    // US = U.S. Treasury par yield curve, EUR = ECB euro area AAA yield curve.
+    private static readonly HashSet<string> UsMaturities =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "US1M", "US3M", "US6M", "US1Y", "US2Y",
+            "US5Y", "US7Y", "US10Y", "US20Y", "US30Y"
+        };
+
+    private static readonly HashSet<string> EurMaturities =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "EUR3M", "EUR6M", "EUR1Y", "EUR2Y",
+            "EUR5Y", "EUR7Y", "EUR10Y", "EUR20Y", "EUR30Y"
+        };
 
     public static IEndpointRouteBuilder MapMarketData(
         this IEndpointRouteBuilder app)
@@ -100,18 +115,21 @@ public static class MarketEndpoints
                 "Use 1 to 32 ASCII letters, digits, dots, hyphens or carets.");
         }
 
-        if (market.Equals("US", StringComparison.OrdinalIgnoreCase) && identifier.Length == 4 &&
-            identifier.StartsWith("US", StringComparison.OrdinalIgnoreCase) &&
-            identifier.EndsWith("Y", StringComparison.OrdinalIgnoreCase) && 
-            !sourceArray.Contains(identifier, StringComparer.OrdinalIgnoreCase))
+        // GLOBAL is accepted as a market name but has no data provider yet.
+        if (market.Equals("GLOBAL", StringComparison.OrdinalIgnoreCase))
+        {
+            return ProviderUnavailable("Bond");
+        }
+
+        // Validate the maturity against the list of the chosen market (400 instead of a misleading 404).
+        var isUs = market.Equals("US", StringComparison.OrdinalIgnoreCase);
+        if (!(isUs ? UsMaturities : EurMaturities).Contains(identifier))
         {
             return InvalidInput(
                 "Invalid bond identifier",
-                "Supported US Treasury maturities are US2Y, US5Y, US10Y and US30Y.");
-        }
-        if (!market.Equals("US", StringComparison.OrdinalIgnoreCase))
-        {
-            return ProviderUnavailable("Bond");
+                isUs
+                    ? "Supported US Treasury maturities are " + string.Join(", ", UsMaturities.Order()) + "."
+                    : "Supported euro area maturities are " + string.Join(", ", EurMaturities.Order()) + ".");
         }
 
         try
