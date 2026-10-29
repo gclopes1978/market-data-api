@@ -34,3 +34,14 @@ public sealed record CommodityQuote(
     decimal Price,
     string Currency,
     string Unit);
+
+public sealed record CryptoQuote(
+    string Id,
+    string Symbol,
+    string Name,
+    decimal Price,
+    string Currency,
+    decimal? ChangePercent24h,
+    decimal? Volume24h,
+    decimal? MarketCap,
+    int? Rank);
