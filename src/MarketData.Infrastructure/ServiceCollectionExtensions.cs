@@ -73,6 +73,7 @@ public static class ServiceCollectionExtensions
 
         services.AddTransient<IBondQuoteProvider, CompositeBondQuoteProvider>();
 
+        services.AddTransient<IStockSearchProvider, YahooStockSearchProvider>();
         return services;
     }
 }
