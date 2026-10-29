@@ -10,9 +10,12 @@ public class FrankfurterFxProviderTests
     {
         public string? LastUri { get; private set; }
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken ct)
         {
             LastUri = request.RequestUri!.ToString();
+
             return Task.FromResult(new HttpResponseMessage(status)
             {
                 Content = new StringContent(body, Encoding.UTF8, "application/json")
@@ -32,29 +35,35 @@ public class FrankfurterFxProviderTests
     }
 
     private static FrankfurterFxProvider Create(StubHandler handler) =>
-        new(new HttpClient(handler) { BaseAddress = new Uri("https://example.test/v1/") });
+        new(new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://example.test/v2/")
+        });
 
     [Fact]
     public async Task Parses_upstream_response()
     {
         var handler = new StubHandler(HttpStatusCode.OK,
-            "{\"amount\":1.0,\"base\":\"EUR\",\"date\":\"2026-10-23\",\"rates\":{\"USD\":1.1193}}");
+            "{\"date\":\"2026-10-23\",\"base\":\"EUR\",\"quote\":\"USD\",\"rate\":1.1193}");
 
-        var rate = await Create(handler).GetRateAsync("EUR", "USD", CancellationToken.None);
+        var rate = await Create(handler).GetRateAsync(
+            "EUR", "USD", CancellationToken.None);
 
         Assert.NotNull(rate);
         Assert.Equal(1.1193m, rate.Rate);
         Assert.Equal(new DateOnly(2026, 10, 23), rate.Date);
         Assert.Equal("Frankfurter", rate.Source);
-        Assert.Equal("https://example.test/v1/latest?base=EUR&symbols=USD", handler.LastUri);
+        Assert.Equal("https://example.test/v2/rate/EUR/USD", handler.LastUri);
     }
 
     [Fact]
     public async Task Unknown_currency_returns_null()
     {
-        var handler = new StubHandler(HttpStatusCode.NotFound, "{\"message\":\"not found\"}");
+        var handler = new StubHandler(
+            HttpStatusCode.NotFound, "{\"message\":\"not found\"}");
 
-        var rate = await Create(handler).GetRateAsync("EUR", "XXX", CancellationToken.None);
+        var rate = await Create(handler).GetRateAsync(
+            "EUR", "XXX", CancellationToken.None);
 
         Assert.Null(rate);
     }
@@ -82,7 +91,7 @@ public class FrankfurterFxProviderTests
     {
         using var http = new HttpClient(new TimeoutHandler())
         {
-            BaseAddress = new Uri("https://example.test/v1/"),
+            BaseAddress = new Uri("https://example.test/v2/"),
             Timeout = TimeSpan.FromMilliseconds(100)
         };
 
