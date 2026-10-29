@@ -57,7 +57,7 @@ The tests do not use the network: the provider interface is replaced by a fake i
 
 | Key | Default |
 |---|---|
-| `Providers:Frankfurter:BaseUrl` | `https://api.frankfurter.dev/v1/` |
+| `Providers:Frankfurter:BaseUrl` | `https://api.frankfurter.dev/v2/` |
 
 As an environment variable, use the double-underscore form: `Providers__Frankfurter__BaseUrl`.
 
