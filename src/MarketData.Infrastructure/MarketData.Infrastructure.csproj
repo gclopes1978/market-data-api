@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\MarketData.Core\MarketData.Core.csproj" />
@@ -8,6 +8,12 @@
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.*" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="9.*" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+	<Content Include="Data\tickers.csv">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	</Content>
   </ItemGroup>
 
   <PropertyGroup>

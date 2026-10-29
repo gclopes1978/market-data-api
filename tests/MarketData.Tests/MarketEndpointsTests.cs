@@ -22,7 +22,8 @@ public sealed class MarketEndpointsTests(
             Task<MarketDataEnvelope<EuriborRate>?>>? euriborResponse = null,
         IEquityQuoteProvider? equityProvider = null,
         ICommodityQuoteProvider? commodityProvider = null,
-        IBondQuoteProvider? bondProvider = null)
+        IBondQuoteProvider? bondProvider = null,
+        IStockSearchProvider? stockSearchProvider = null)
     {
         return factory.WithWebHostBuilder(builder =>
             builder.ConfigureTestServices(services =>
@@ -43,6 +44,10 @@ public sealed class MarketEndpointsTests(
                 services.RemoveAll<IBondQuoteProvider>();
                 services.AddSingleton<IBondQuoteProvider>(
                     bondProvider ?? new FakeBondQuoteProvider());
+                services.RemoveAll<IStockSearchProvider>();
+                services.AddSingleton<IStockSearchProvider>(
+                    stockSearchProvider ?? new FakeStockSearchProvider());
+
             })).CreateClient();
     }
 
@@ -126,6 +131,22 @@ public sealed class MarketEndpointsTests(
         using var response = await client.GetAsync("/api/euribor/12M");
 
         Assert.Equal(HttpStatusCode.GatewayTimeout, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task StockSearch_WithValidQuery_ReturnsResults()
+    {
+        using var client = CreateTestClient();
+
+        using var response = await client.GetAsync(
+            "/api/stocks/search?q=apple");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(JsonValueKind.Array, document.RootElement.ValueKind);
     }
 
     [Theory]
@@ -286,5 +307,20 @@ public sealed class MarketEndpointsTests(
                     new BondQuote(identifier, market, null, "USD",
                         3.75m, null),
                     new MarketDataMetadata("Test provider", AsOf)));
+    }
+
+    private sealed class FakeStockSearchProvider : IStockSearchProvider
+    {
+        public Task<IReadOnlyList<StockSearchResult>> SearchAsync(
+            string query,
+            CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<StockSearchResult>>(
+                [
+                new StockSearchResult(
+                    "AAPL",
+                    "Apple Inc.",
+                    "NMS",
+                    "NASDAQ")
+                ]);
     }
 }

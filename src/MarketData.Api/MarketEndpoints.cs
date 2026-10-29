@@ -44,6 +44,7 @@ public static class MarketEndpoints
 
         api.MapGet("/euribor/{tenor}", GetEuribor);
         api.MapGet("/bonds/{market}/{identifier}", GetBond);
+        api.MapGet("/stocks/search", SearchStocks);
         api.MapGet("/stocks/{ticker}", GetStock);
         api.MapGet("/etfs/{ticker}", GetEtf);
         api.MapGet("/commodities/{symbol}", GetCommodity);
@@ -163,6 +164,45 @@ public static class MarketEndpoints
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
             return ProviderTimeout("Bond");
+        }
+    }
+
+    private static async Task<IResult> SearchStocks([FromQuery] string? q, [FromServices] IStockSearchProvider provider, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(q) || q.Trim().Length < 2)
+        {
+            return InvalidInput(
+                "Invalid stock search query",
+                "Provide at least 2 characters to search for stocks.");
+        }
+
+        if (q.Trim().Length > 100)
+        {
+            return InvalidInput(
+                "Invalid stock search query",
+                "The search query must not exceed 100 characters.");
+        }
+
+        try
+        {
+            var results = await provider.SearchAsync(q.Trim(), ct);
+            return Results.Ok(results);
+        }
+        catch (HttpRequestException)
+        {
+            return ProviderError("Stock search");
+        }
+        catch (JsonException)
+        {
+            return InvalidProviderResponse("Stock search");
+        }
+        catch (FormatException)
+        {
+            return InvalidProviderResponse("Stock search");
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return ProviderTimeout("Stock search");
         }
     }
 

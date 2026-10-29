@@ -486,3 +486,6 @@ $RECYCLE.BIN/
 .env
 appsettings.*.local.json
 endpoint-test-results.txt
+
+# Local PowerShell scripts
+Market-data-api.ps1

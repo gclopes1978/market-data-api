@@ -1,4 +1,4 @@
-using System.Globalization;
+using MarketData.Core;
 using System.Text.Json;
 
 namespace MarketData.Infrastructure;
@@ -105,6 +105,56 @@ internal sealed class YahooFinanceClient(HttpClient http)
             changePercent,
             volume,
             asOf);
+    }
+
+    public async Task<IReadOnlyList<StockSearchResult>> SearchStocksAsync(string query, CancellationToken ct)
+    {
+        var path = $"v1/finance/search?q={Uri.EscapeDataString(query)}&quotesCount=100&newsCount=0";
+
+        using var response = await http.GetAsync(path, ct);
+        response.EnsureSuccessStatusCode();
+
+        await using var stream = await response.Content.ReadAsStreamAsync(ct);
+        using var document = await JsonDocument.ParseAsync(
+            stream, cancellationToken: ct);
+
+        var results = new List<StockSearchResult>();
+        var root = document.RootElement;
+
+        if (!root.TryGetProperty("quotes", out var quotes) ||
+            quotes.ValueKind != JsonValueKind.Array)
+        {
+            return results;
+        }
+
+        foreach (var quote in quotes.EnumerateArray())
+        {
+            var quoteType = GetString(quote, "quoteType");
+
+            if (!string.Equals(
+                    quoteType, "EQUITY", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var symbol = GetString(quote, "symbol");
+            var name = GetString(quote, "longname")
+                ?? GetString(quote, "shortname");
+
+            if (string.IsNullOrWhiteSpace(symbol) ||
+                string.IsNullOrWhiteSpace(name))
+            {
+                continue;
+            }
+
+            results.Add(new StockSearchResult(
+                symbol,
+                name,
+                GetString(quote, "exchange"),
+                GetString(quote, "exchDisp")));
+        }
+
+        return results;
     }
 
     private static string? GetString(JsonElement element, string property) =>
