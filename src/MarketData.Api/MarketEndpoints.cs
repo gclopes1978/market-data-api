@@ -7,7 +7,7 @@ using System.Xml;
 
 namespace MarketData.Api;
 
-public static class MarketEndpoints
+public static partial class MarketEndpoints
 {
     private static readonly HashSet<string> EuriborTenors =
         new(StringComparer.OrdinalIgnoreCase)
@@ -48,6 +48,8 @@ public static class MarketEndpoints
         api.MapGet("/stocks/{ticker}", GetStock);
         api.MapGet("/etfs/{ticker}", GetEtf);
         api.MapGet("/commodities/{symbol}", GetCommodity);
+        api.MapGet("/crypto", ListCrypto);
+        api.MapGet("/crypto/{id}", GetCrypto);
 
         return app;
     }

@@ -74,6 +74,21 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IBondQuoteProvider, CompositeBondQuoteProvider>();
 
         services.AddTransient<IStockSearchProvider, YahooStockSearchProvider>();
+
+        // Crypto: one typed client serves both the catalog and the quotes (CoinPaprika, no API key).
+        services.AddMemoryCache();
+        services.AddHttpClient<CoinPaprikaCryptoProvider>(http =>
+        {
+            http.BaseAddress = new Uri("https://api.coinpaprika.com/v1/");
+            http.Timeout = TimeSpan.FromSeconds(15);
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("MarketDataApi/1.0");
+            http.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+        });
+        services.AddTransient<ICryptoCatalogProvider>(sp =>
+            sp.GetRequiredService<CoinPaprikaCryptoProvider>());
+        services.AddTransient<ICryptoQuoteProvider>(sp =>
+            sp.GetRequiredService<CoinPaprikaCryptoProvider>());
+
         return services;
     }
 }

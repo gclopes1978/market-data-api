@@ -23,6 +23,8 @@ This is an R&D proof of concept, built to explore a Docker-first workflow that i
 | GET | `/api/bonds/{market}/{identifier}` | Government bond yield. `US`: `US1M`...`US30Y` (U.S. Treasury). `EUR`: `EUR3M`...`EUR30Y` (ECB euro area AAA yield curve, a fitted curve rather than a single bond). `GLOBAL` has no provider yet (503) |
 | GET | `/api/stocks/{ticker}`, `/api/etfs/{ticker}` | Quote for a stock or ETF (Yahoo Finance symbols, e.g. `AAPL`, `SPY`, `VWCE.DE`) |
 | GET | `/api/commodities/{symbol}` | Commodity futures quote |
+| GET | `/api/crypto` | All active cryptocurrencies ordered by market-cap rank (CoinPaprika, no API key). Optional `q` (name or symbol) and `limit` (1-1000). Each item has the `id` used by the quote endpoint |
+| GET | `/api/crypto/{id}` | Latest quote of one cryptocurrency (`id` as listed above, e.g. `btc-bitcoin`). Optional `currency`: `USD` (default) or `EUR`. Returns price, 24h change, 24h volume and market cap |
 | GET | `/health` | Liveness check |
 
 Status codes: `200` rate found, `400` currency codes are not 3 letters, `404` unknown currency.
