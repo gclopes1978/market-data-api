@@ -45,7 +45,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Build Docker image
-        run: docker build --tag market-data-api:smoke .
+        run: docker build --pull --tag market-data-api:smoke .
 
       - name: Start container
         run: |
