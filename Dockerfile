@@ -1,9 +1,11 @@
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+# Build stage
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY . .
 RUN dotnet publish src/MarketData.Api -c Release -o /app
 
-FROM mcr.microsoft.com/dotnet/aspnet:9.0
+# Runtime stage
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 COPY --from=build /app .
 # Run as non-root (APP_UID is predefined in the .NET images)
