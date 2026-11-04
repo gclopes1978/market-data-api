@@ -26,6 +26,7 @@ public class CoinPaprikaCryptoProviderTests
           "quotes":{"EUR":{"price":93500.25,"volume_24h":31000000000.5,"market_cap":1850000000000,"percent_change_24h":-1.37}}
         }
         """;
+    private static readonly string[] expected = ["btc-bitcoin", "eth-ethereum", "aaa-alpha", "zzz-zebra"];
 
     private sealed class StubHandler(HttpStatusCode status, string body) : HttpMessageHandler
     {
@@ -34,7 +35,7 @@ public class CoinPaprikaCryptoProviderTests
 
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
-            CancellationToken ct)
+            CancellationToken cancellationToken)
         {
             Calls++;
             LastUri = request.RequestUri!.ToString();
@@ -62,7 +63,7 @@ public class CoinPaprikaCryptoProviderTests
         Assert.Equal("https://example.test/v1/coins", handler.LastUri);
         Assert.Equal("CoinPaprika", result.Metadata.Source);
         Assert.Equal(
-            new[] { "btc-bitcoin", "eth-ethereum", "aaa-alpha", "zzz-zebra" },
+            expected,
             result.Data.Select(a => a.Id).ToArray());
 
         var bitcoin = result.Data[0];
