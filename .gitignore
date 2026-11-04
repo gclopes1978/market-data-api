@@ -489,3 +489,4 @@ endpoint-test-results.txt
 
 # Local PowerShell scripts
 Market-data-api.ps1
+/.sonarqube
