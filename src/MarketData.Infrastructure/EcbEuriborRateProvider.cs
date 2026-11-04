@@ -7,8 +7,8 @@ namespace MarketData.Infrastructure;
 public sealed class EcbEuriborRateProvider(HttpClient http)
     : IEuriborRateProvider
 {
-    private static readonly IReadOnlyDictionary<string, string> SeriesKeys =
-        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, string> SeriesKeys =
+        new(StringComparer.OrdinalIgnoreCase)
         {
             ["1M"] = "EURIBOR1MD_",
             ["3M"] = "EURIBOR3MD_",
@@ -122,22 +122,23 @@ public sealed class EcbEuriborRateProvider(HttpClient http)
         var fields = new List<string>();
         var field = new StringBuilder();
         var quoted = false;
+        var i = 0;
 
-        for (var i = 0; i < line.Length; i++)
+        while (i < line.Length)
         {
             var c = line[i];
 
+            if (c == '"' && quoted && i + 1 < line.Length && line[i + 1] == '"')
+            {
+                // Escaped quote ("") inside a quoted field: consume both characters
+                field.Append('"');
+                i += 2;
+                continue;
+            }
+
             if (c == '"')
             {
-                if (quoted && i + 1 < line.Length && line[i + 1] == '"')
-                {
-                    field.Append('"');
-                    i++;
-                }
-                else
-                {
-                    quoted = !quoted;
-                }
+                quoted = !quoted;
             }
             else if (c == ',' && !quoted)
             {
@@ -148,6 +149,8 @@ public sealed class EcbEuriborRateProvider(HttpClient http)
             {
                 field.Append(c);
             }
+
+            i++;
         }
 
         fields.Add(field.ToString());
