@@ -17,8 +17,8 @@ public sealed class EcbBondQuoteProvider(HttpClient http) : IBondQuoteProvider
     private const string Market = "EUR";
 
     // Public identifier -> ECB series suffix. Only maturities that exist in the ECB dataset are listed.
-    private static readonly IReadOnlyDictionary<string, string> Maturities =
-        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, string> Maturities =
+        new(StringComparer.OrdinalIgnoreCase)
         {
             ["EUR3M"] = "SR_3M",
             ["EUR6M"] = "SR_6M",
@@ -141,8 +141,9 @@ public sealed class EcbBondQuoteProvider(HttpClient http) : IBondQuoteProvider
         var fields = new List<string>();
         var field = new StringBuilder();
         var quoted = false;
+        var i = 0;
 
-        for (var i = 0; i < line.Length; i++)
+        while (i < line.Length)
         {
             var c = line[i];
 
@@ -150,13 +151,13 @@ public sealed class EcbBondQuoteProvider(HttpClient http) : IBondQuoteProvider
             {
                 if (quoted && i + 1 < line.Length && line[i + 1] == '"')
                 {
+                    // Escaped quote ("") inside a quoted field: consume both characters
                     field.Append('"');
-                    i++;
+                    i += 2;
+                    continue;
                 }
-                else
-                {
-                    quoted = !quoted;
-                }
+
+                quoted = !quoted;
             }
             else if (c == ',' && !quoted)
             {
@@ -167,6 +168,8 @@ public sealed class EcbBondQuoteProvider(HttpClient http) : IBondQuoteProvider
             {
                 field.Append(c);
             }
+
+            i++;
         }
 
         fields.Add(field.ToString());

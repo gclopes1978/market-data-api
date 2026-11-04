@@ -13,7 +13,4 @@ app.MapHealthChecks("/health");
 app.MapFx();
 app.MapMarketData();
 
-app.Run();
-
-// Required by WebApplicationFactory<Program> in the test project
-public partial class Program { }
+await app.RunAsync();

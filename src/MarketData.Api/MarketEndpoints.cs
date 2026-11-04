@@ -9,6 +9,12 @@ namespace MarketData.Api;
 
 public static partial class MarketEndpoints
 {
+    private const string Euribor= "Euribor";
+    private const string Bond = "Bond";
+
+    private const string SearchStock = "Stock search";
+
+    private const string Commodity = "Commodity";
     private static readonly HashSet<string> EuriborTenors =
         new(StringComparer.OrdinalIgnoreCase)
         {
@@ -78,23 +84,23 @@ public static partial class MarketEndpoints
         }
         catch (HttpRequestException)
         {
-            return ProviderError("Euribor");
+            return ProviderError(Euribor);
         }
         catch (FormatException)
         {
-            return InvalidProviderResponse("Euribor");
+            return InvalidProviderResponse(Euribor);
         }
         catch (JsonException)
         {
-            return InvalidProviderResponse("Euribor");
+            return InvalidProviderResponse(Euribor);
         }
         catch (XmlException)
         {
-            return InvalidProviderResponse("Euribor");
+            return InvalidProviderResponse(Euribor);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            return ProviderTimeout("Euribor");
+            return ProviderTimeout(Euribor);
         }
     }
 
@@ -121,7 +127,7 @@ public static partial class MarketEndpoints
         // GLOBAL is accepted as a market name but has no data provider yet.
         if (market.Equals("GLOBAL", StringComparison.OrdinalIgnoreCase))
         {
-            return ProviderUnavailable("Bond");
+            return ProviderUnavailable(Bond);
         }
 
         // Validate the maturity against the list of the chosen market (400 instead of a misleading 404).
@@ -149,23 +155,23 @@ public static partial class MarketEndpoints
         }
         catch (HttpRequestException)
         {
-            return ProviderError("Bond");
+            return ProviderError(Bond);
         }
         catch (JsonException)
         {
-            return InvalidProviderResponse("Bond");
+            return InvalidProviderResponse(Bond);
         }
         catch (XmlException)
         {
-            return InvalidProviderResponse("Bond");
+            return InvalidProviderResponse(Bond);
         }
         catch (FormatException)
         {
-            return InvalidProviderResponse("Bond");
+            return InvalidProviderResponse(Bond);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            return ProviderTimeout("Bond");
+            return ProviderTimeout(Bond);
         }
     }
 
@@ -192,19 +198,19 @@ public static partial class MarketEndpoints
         }
         catch (HttpRequestException)
         {
-            return ProviderError("Stock search");
+            return ProviderError(SearchStock);
         }
         catch (JsonException)
         {
-            return InvalidProviderResponse("Stock search");
+            return InvalidProviderResponse(SearchStock);
         }
         catch (FormatException)
         {
-            return InvalidProviderResponse("Stock search");
+            return InvalidProviderResponse(SearchStock);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            return ProviderTimeout("Stock search");
+            return ProviderTimeout(SearchStock);
         }
     }
 
@@ -212,19 +218,19 @@ public static partial class MarketEndpoints
         string ticker,
         [FromServices] IEquityQuoteProvider provider,
         CancellationToken ct) =>
-        GetEquity(ticker, provider, ct, "Stock");
+        GetEquity(ticker, provider,  "Stock", ct);
 
     private static Task<IResult> GetEtf(
         string ticker,
         [FromServices] IEquityQuoteProvider provider,
         CancellationToken ct) =>
-        GetEquity(ticker, provider, ct, "ETF");
+        GetEquity(ticker, provider,  "ETF", ct);
 
     private static async Task<IResult> GetEquity(
         string ticker,
         IEquityQuoteProvider provider,
-        CancellationToken ct,
-        string asset)
+        string asset,
+        CancellationToken ct)
     {
         if (!IsIdentifier(ticker, 20))
         {
@@ -285,19 +291,19 @@ public static partial class MarketEndpoints
         }
         catch (HttpRequestException)
         {
-            return ProviderError("Commodity");
+            return ProviderError(Commodity);
         }
         catch (JsonException)
         {
-            return InvalidProviderResponse("Commodity");
+            return InvalidProviderResponse(Commodity);
         }
         catch (FormatException)
         {
-            return InvalidProviderResponse("Commodity");
+            return InvalidProviderResponse(Commodity);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            return ProviderTimeout("Commodity");
+            return ProviderTimeout(Commodity);
         }
     }
 
