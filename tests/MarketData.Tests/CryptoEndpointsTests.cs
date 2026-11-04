@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
 using MarketData.Core;
@@ -12,6 +13,24 @@ public sealed class CryptoEndpointsTests(
     WebApplicationFactory<Program> factory)
     : IClassFixture<WebApplicationFactory<Program>>
 {
+    public enum ProviderFailureKind
+    {
+        HttpError,
+        InvalidJson,
+        InvalidPayload,
+        Timeout
+    }
+
+
+    public static TheoryData<ProviderFailureKind, HttpStatusCode> ProviderFailures => new()
+    {
+        { ProviderFailureKind.Timeout, HttpStatusCode.GatewayTimeout },
+        { ProviderFailureKind.HttpError, HttpStatusCode.BadGateway },
+        { ProviderFailureKind.InvalidJson, HttpStatusCode.BadGateway },
+        { ProviderFailureKind.InvalidPayload, HttpStatusCode.BadGateway },
+    };
+
+
     private static readonly MarketDataMetadata Metadata =
         new("CoinPaprika", new DateOnly(2026, 10, 29));
 
@@ -24,6 +43,7 @@ public sealed class CryptoEndpointsTests(
         new("btc-bitcoin-fake", "Fake Coin", "BTC", 900, "token"),
         new("new-newcoin", "Newcoin", "NEW", null, "token"),
     ];
+    private static readonly string[] expectedArray = ["btc-bitcoin"];
 
     private sealed class FakeCryptoCatalogProvider(
         Func<CancellationToken, Task<MarketDataEnvelope<IReadOnlyList<CryptoAsset>>>>? handler = null)
@@ -80,10 +100,16 @@ public sealed class CryptoEndpointsTests(
         JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 
     private static string[] Ids(JsonDocument document) =>
-        document.RootElement.GetProperty("data").EnumerateArray()
-            .Select(e => e.GetProperty("id").GetString()!)
-            .ToArray();
+        [.. document.RootElement.GetProperty("data").EnumerateArray().Select(e => e.GetProperty("id").GetString()!)];
 
+    private static Exception CreateFailure(ProviderFailureKind kind) => kind switch
+    {
+        ProviderFailureKind.HttpError => new HttpRequestException("Simulated provider failure"),
+        ProviderFailureKind.InvalidJson => new JsonException("Simulated invalid JSON"),
+        ProviderFailureKind.InvalidPayload => new FormatException("Simulated invalid payload"),
+        ProviderFailureKind.Timeout => new OperationCanceledException("Simulated timeout"),
+        _ => throw new ArgumentOutOfRangeException(nameof(kind))
+    };
     // ---- GET /api/crypto ----------------------------------------------------------------
 
     [Fact]
@@ -117,12 +143,12 @@ public sealed class CryptoEndpointsTests(
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         using var document = await ReadJson(response);
-
+        string[] expected = ["btc-bitcoin", "btc-bitcoin-fake", "wbtc-wrapped-bitcoin"];
         // Exact symbol matches first (catalog order kept), then the other matches.
         // "Bitcoin Cash" (BCH) is not a match: "btc" is neither in its name nor in its symbol.
         var ids = Ids(document);
         Assert.Equal(
-            new[] { "btc-bitcoin", "btc-bitcoin-fake", "wbtc-wrapped-bitcoin" },
+            expected,
             ids);
         Assert.DoesNotContain("eth-ethereum", ids);
     }
@@ -134,9 +160,17 @@ public sealed class CryptoEndpointsTests(
         using var response = await client.GetAsync("/api/crypto?limit=2");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
+        string[] expected = ["btc-bitcoin", "eth-ethereum"];
         using var document = await ReadJson(response);
-        Assert.Equal(new[] { "btc-bitcoin", "eth-ethereum" }, Ids(document));
+        foreach (var id in Ids(document))
+        {
+            Debug.Print(id);
+        }
+        foreach (var id in expected.Take(2))
+        {
+            Debug.Print(id);
+        }
+        Assert.Equal(expected.Take(2).ToArray(), Ids(document));
     }
 
     [Fact]
@@ -146,7 +180,7 @@ public sealed class CryptoEndpointsTests(
         using var response = await client.GetAsync("/api/crypto?q=bitcoin&limit=1");
 
         using var document = await ReadJson(response);
-        Assert.Equal(new[] { "btc-bitcoin" }, Ids(document));
+        Assert.Equal(expectedArray, Ids(document));
     }
 
     [Fact]
@@ -184,8 +218,11 @@ public sealed class CryptoEndpointsTests(
 
     [Theory]
     [MemberData(nameof(ProviderFailures))]
-    public async Task List_maps_provider_failures(Exception failure, HttpStatusCode expected)
+    public async Task List_maps_provider_failures(ProviderFailureKind kind, HttpStatusCode expected)
     {
+        // Build the exception inside the test, since Exception is not serializable
+        var failure = CreateFailure(kind);
+
         using var client = CreateTestClient(
             catalog: new FakeCryptoCatalogProvider(
                 _ => Task.FromException<MarketDataEnvelope<IReadOnlyList<CryptoAsset>>>(failure)));
@@ -296,8 +333,10 @@ public sealed class CryptoEndpointsTests(
 
     [Theory]
     [MemberData(nameof(ProviderFailures))]
-    public async Task Quote_maps_provider_failures(Exception failure, HttpStatusCode expected)
+    public async Task Quote_maps_provider_failures(ProviderFailureKind kind, HttpStatusCode expected)
     {
+        var failure = CreateFailure(kind);
+
         using var client = CreateTestClient(
             quotes: new FakeCryptoQuoteProvider(
                 (_, _) => Task.FromException<MarketDataEnvelope<CryptoQuote>?>(failure)));
@@ -306,12 +345,4 @@ public sealed class CryptoEndpointsTests(
 
         Assert.Equal(expected, response.StatusCode);
     }
-
-    public static TheoryData<Exception, HttpStatusCode> ProviderFailures() => new()
-    {
-        { new HttpRequestException("Simulated provider failure"), HttpStatusCode.BadGateway },
-        { new JsonException("Simulated invalid JSON"), HttpStatusCode.BadGateway },
-        { new FormatException("Simulated invalid payload"), HttpStatusCode.BadGateway },
-        { new OperationCanceledException("Simulated timeout"), HttpStatusCode.GatewayTimeout },
-    };
 }
