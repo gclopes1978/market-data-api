@@ -16,6 +16,12 @@ jobs:
     name: Build and Test (.NET 10)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write # lets the job post the coverage summary on the PR
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout repository
@@ -30,10 +36,55 @@ jobs:
         run: dotnet restore
 
       - name: Build
-        run: dotnet build --no-restore --configuration Release
+        run: dotnet build --no-restore --configuration Release 2>&1 | tee build.log
 
-      - name: Test
-        run: dotnet test --no-build --configuration Release
+      - name: Test (with coverage)
+        run: >
+          dotnet test --no-build --configuration Release
+          --collect:"XPlat Code Coverage" --results-directory ./coverage
+          2>&1 | tee test.log
+
+      - name: Coverage report
+        if: always()
+        run: |
+          dotnet tool install --global dotnet-reportgenerator-globaltool
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          reportgenerator \
+            -reports:"coverage/**/coverage.cobertura.xml" \
+            -targetdir:coverage/report \
+            -assemblyfilters:"+MarketData.*;-MarketData.Tests" \
+            -reporttypes:"MarkdownSummaryGithub;TextSummary"
+          cat coverage/report/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enforce minimum line coverage
+        env:
+          MIN_LINE_COVERAGE: "80"
+        run: |
+          line=$(grep -oP 'Line coverage: \K[0-9.]+' coverage/report/Summary.txt | head -1)
+          echo "Line coverage: ${line}% (minimum ${MIN_LINE_COVERAGE}%)"
+          awk -v v="$line" -v min="$MIN_LINE_COVERAGE" 'BEGIN { exit (v + 0 >= min + 0) ? 0 : 1 }'
+
+      - name: Comment coverage and failures on the PR
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true # forks get a read-only token
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            echo "### Coverage"
+            echo '```'
+            cat coverage/report/Summary.txt 2>/dev/null || echo "No coverage report was produced."
+            echo '```'
+            echo "### Build/test problems (filtered log)"
+            echo '```'
+            cat build.log test.log 2>/dev/null \
+              | grep -E "error (CS|MSB|NU)[0-9]+|\[FAIL\]|Failed |Error Message|Assert\.|Expected:|Actual:|Stack Trace|   at MarketData" \
+              | awk '!seen[$0]++' | head -150 || true
+            echo '```'
+          } > comment.md
+          gh pr comment "$PR_NUMBER" --body-file comment.md --edit-last --create-if-none \
+            || gh pr comment "$PR_NUMBER" --body-file comment.md
 
   docker-smoke-test:
     name: Docker Smoke Test
