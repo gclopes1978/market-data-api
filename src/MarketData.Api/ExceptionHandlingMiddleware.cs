@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Xml;
 using Polly.CircuitBreaker;
+using Polly.Timeout;
 
 namespace MarketData.Api;
 
@@ -74,8 +75,9 @@ public sealed class ExceptionHandlingMiddleware(
             "The upstream data provider is failing repeatedly, so the request was not attempted. Try again shortly.",
             LogLevel.Warning),
 
-        // Polly's TimeoutRejectedException derives from TimeoutException.
-        TimeoutException or OperationCanceledException => new(
+        // TimeoutRejectedException is Polly's attempt timeout; OperationCanceledException is HttpClient's own
+        // timeout (a client disconnect was already handled above).
+        TimeoutRejectedException or TimeoutException or OperationCanceledException => new(
             StatusCodes.Status504GatewayTimeout,
             "Data provider timed out",
             "The data provider did not respond in time.",
