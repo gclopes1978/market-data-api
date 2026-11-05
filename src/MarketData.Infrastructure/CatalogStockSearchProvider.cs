@@ -5,8 +5,16 @@ namespace MarketData.Infrastructure;
 
 internal sealed class CatalogStockSearchProvider : IStockSearchProvider
 {
-    private readonly Lazy<IReadOnlyList<StockSearchResult>> _stocks =
-        new(LoadStocks);
+    private readonly Lazy<IReadOnlyList<StockSearchResult>> _stocks;
+
+    public CatalogStockSearchProvider()
+        : this(Path.Combine(AppContext.BaseDirectory, "Data", "tickers.csv"))
+    {
+    }
+
+    // Injectable path so the loader can be tested against temporary CSV files.
+    internal CatalogStockSearchProvider(string path) =>
+        _stocks = new(() => LoadStocks(path));
 
     public Task<IReadOnlyList<StockSearchResult>> SearchAsync(
         string query,
@@ -37,11 +45,8 @@ internal sealed class CatalogStockSearchProvider : IStockSearchProvider
         return Task.FromResult<IReadOnlyList<StockSearchResult>>(results);
     }
 
-    private static IReadOnlyList<StockSearchResult> LoadStocks()
+    private static IReadOnlyList<StockSearchResult> LoadStocks(string path)
     {
-        var path = Path.Combine(
-            AppContext.BaseDirectory, "Data", "tickers.csv");
-
         if (!File.Exists(path))
         {
             throw new FileNotFoundException(
