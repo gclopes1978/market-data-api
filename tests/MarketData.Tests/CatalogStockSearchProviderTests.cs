@@ -107,42 +107,42 @@ public sealed class CatalogStockSearchProviderTests : IDisposable
     }
 
     [Fact]
-    public void A_missing_file_throws_FileNotFoundException()
+    public async Task A_missing_file_throws_FileNotFoundException()
     {
         var provider = new CatalogStockSearchProvider(Path.Combine(_dir, "missing.csv"));
 
-        Assert.Throws<FileNotFoundException>(() =>
+        await Assert.ThrowsAsync<FileNotFoundException>(() =>
             provider.SearchAsync("ab", CancellationToken.None));
     }
 
     [Fact]
-    public void An_empty_file_throws_InvalidDataException()
+    public async Task An_empty_file_throws_InvalidDataException()
     {
         var provider = CreateFrom("");
 
-        Assert.Throws<InvalidDataException>(() =>
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
             provider.SearchAsync("ab", CancellationToken.None));
     }
 
     [Fact]
-    public void A_missing_required_column_throws_InvalidDataException()
+    public async Task A_missing_required_column_throws_InvalidDataException()
     {
         var provider = CreateFrom("ticker,name,exchange\nAAA,Alpha,NYSE\n");
 
-        var ex = Assert.Throws<InvalidDataException>(() =>
+        var ex = await Assert.ThrowsAsync<InvalidDataException>(() =>
             provider.SearchAsync("ab", CancellationToken.None));
 
         Assert.Contains("asset_type", ex.Message);
     }
 
     [Fact]
-    public void A_cancelled_token_is_honoured_before_any_work()
+    public async Task A_cancelled_token_is_honoured_before_any_work()
     {
         var provider = CreateFrom(Header);
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        Assert.Throws<OperationCanceledException>(() =>
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
             provider.SearchAsync("ab", cts.Token));
     }
 }
