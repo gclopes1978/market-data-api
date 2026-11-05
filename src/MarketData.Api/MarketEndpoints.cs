@@ -1,9 +1,6 @@
 
 using MarketData.Core;
 using Microsoft.AspNetCore.Mvc;
-using System.Net;
-using System.Text.Json;
-using System.Xml;
 
 namespace MarketData.Api;
 
@@ -49,14 +46,16 @@ public static partial class MarketEndpoints
     {
         var api = app.MapGroup("/api");
 
-        api.MapGet("/euribor/{tenor}", GetEuribor);
-        api.MapGet("/bonds/{market}/{identifier}", GetBond);
-        api.MapGet("/stocks/search", SearchStocks);
-        api.MapGet("/stocks/{ticker}", GetStock);
-        api.MapGet("/etfs/{ticker}", GetEtf);
-        api.MapGet("/commodities/{symbol}", GetCommodity);
-        api.MapGet("/crypto", ListCrypto);
-        api.MapGet("/crypto/{id}", GetCrypto);
+        // WithUpstream names the data each route depends on; ExceptionHandlingMiddleware turns provider
+        // failures (502/503/504) into problem details titled after it.
+        api.MapGet("/euribor/{tenor}", GetEuribor).WithUpstream(Euribor);
+        api.MapGet("/bonds/{market}/{identifier}", GetBond).WithUpstream(Bond);
+        api.MapGet("/stocks/search", SearchStocks).WithUpstream(SearchStock);
+        api.MapGet("/stocks/{ticker}", GetStock).WithUpstream("Stock");
+        api.MapGet("/etfs/{ticker}", GetEtf).WithUpstream("ETF");
+        api.MapGet("/commodities/{symbol}", GetCommodity).WithUpstream(Commodity);
+        api.MapGet("/crypto", ListCrypto).WithUpstream(Crypto);
+        api.MapGet("/crypto/{id}", GetCrypto).WithUpstream(Crypto);
 
         return app;
     }
@@ -73,36 +72,13 @@ public static partial class MarketEndpoints
                 "Supported tenors are 1M, 3M, 6M and 12M.");
         }
 
-        try
-        {
-            var result = await provider.GetRateAsync(
-                tenor.ToUpperInvariant(), ct);
+        var result = await provider.GetRateAsync(
+            tenor.ToUpperInvariant(), ct);
 
-            return result is null
-                ? NotFound("Euribor rate not found",
-                    "No observation was returned for the requested tenor.")
-                : Results.Ok(result);
-        }
-        catch (HttpRequestException)
-        {
-            return ProviderError(Euribor);
-        }
-        catch (FormatException)
-        {
-            return InvalidProviderResponse(Euribor);
-        }
-        catch (JsonException)
-        {
-            return InvalidProviderResponse(Euribor);
-        }
-        catch (XmlException)
-        {
-            return InvalidProviderResponse(Euribor);
-        }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            return ProviderTimeout(Euribor);
-        }
+        return result is null
+            ? NotFound("Euribor rate not found",
+                "No observation was returned for the requested tenor.")
+            : Results.Ok(result);
     }
 
     private static async Task<IResult> GetBond(
@@ -142,38 +118,15 @@ public static partial class MarketEndpoints
                     : "Supported euro area maturities are " + string.Join(", ", EurMaturities.Order()) + ".");
         }
 
-        try
-        {
-            var result = await provider.GetQuoteAsync(
-                market.ToUpperInvariant(),
-                identifier.ToUpperInvariant(),
-                ct);
+        var result = await provider.GetQuoteAsync(
+            market.ToUpperInvariant(),
+            identifier.ToUpperInvariant(),
+            ct);
 
-            return result is null
-                ? NotFound("Bond quote not found",
-                    "No quote was found for the requested bond.")
-                : Results.Ok(result);
-        }
-        catch (HttpRequestException)
-        {
-            return ProviderError(Bond);
-        }
-        catch (JsonException)
-        {
-            return InvalidProviderResponse(Bond);
-        }
-        catch (XmlException)
-        {
-            return InvalidProviderResponse(Bond);
-        }
-        catch (FormatException)
-        {
-            return InvalidProviderResponse(Bond);
-        }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            return ProviderTimeout(Bond);
-        }
+        return result is null
+            ? NotFound("Bond quote not found",
+                "No quote was found for the requested bond.")
+            : Results.Ok(result);
     }
 
     private static async Task<IResult> SearchStocks([FromQuery] string? q, [FromServices] IStockSearchProvider provider, CancellationToken ct)
@@ -192,27 +145,8 @@ public static partial class MarketEndpoints
                 "The search query must not exceed 100 characters.");
         }
 
-        try
-        {
-            var results = await provider.SearchAsync(q.Trim(), ct);
-            return Results.Ok(results);
-        }
-        catch (HttpRequestException)
-        {
-            return ProviderError(SearchStock);
-        }
-        catch (JsonException)
-        {
-            return InvalidProviderResponse(SearchStock);
-        }
-        catch (FormatException)
-        {
-            return InvalidProviderResponse(SearchStock);
-        }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            return ProviderTimeout(SearchStock);
-        }
+        var results = await provider.SearchAsync(q.Trim(), ct);
+        return Results.Ok(results);
     }
 
     private static Task<IResult> GetStock(
@@ -240,32 +174,13 @@ public static partial class MarketEndpoints
                 "Use 1 to 20 ASCII letters, digits, dots, hyphens or carets.");
         }
 
-        try
-        {
-            var result = await provider.GetQuoteAsync(
-                ticker.ToUpperInvariant(), ct);
+        var result = await provider.GetQuoteAsync(
+            ticker.ToUpperInvariant(), ct);
 
-            return result is null
-                ? NotFound($"{asset} quote not found",
-                    $"No quote was found for the requested {asset.ToLowerInvariant()}.")
-                : Results.Ok(result);
-        }
-        catch (HttpRequestException)
-        {
-            return ProviderError(asset);
-        }
-        catch (JsonException)
-        {
-            return InvalidProviderResponse(asset);
-        }
-        catch (FormatException)
-        {
-            return InvalidProviderResponse(asset);
-        }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            return ProviderTimeout(asset);
-        }
+        return result is null
+            ? NotFound($"{asset} quote not found",
+                $"No quote was found for the requested {asset.ToLowerInvariant()}.")
+            : Results.Ok(result);
     }
 
     private static async Task<IResult> GetCommodity(
@@ -280,32 +195,13 @@ public static partial class MarketEndpoints
                 "Use 1 to 20 ASCII letters, digits, dots, hyphens or carets.");
         }
 
-        try
-        {
-            var result = await provider.GetQuoteAsync(
-                symbol.ToUpperInvariant(), ct);
+        var result = await provider.GetQuoteAsync(
+            symbol.ToUpperInvariant(), ct);
 
-            return result is null
-                ? NotFound("Commodity quote not found",
-                    "No quote was found for the requested commodity.")
-                : Results.Ok(result);
-        }
-        catch (HttpRequestException)
-        {
-            return ProviderError(Commodity);
-        }
-        catch (JsonException)
-        {
-            return InvalidProviderResponse(Commodity);
-        }
-        catch (FormatException)
-        {
-            return InvalidProviderResponse(Commodity);
-        }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            return ProviderTimeout(Commodity);
-        }
+        return result is null
+            ? NotFound("Commodity quote not found",
+                "No quote was found for the requested commodity.")
+            : Results.Ok(result);
     }
 
     private static bool IsIdentifier(string value, int maxLength) =>
@@ -332,22 +228,4 @@ public static partial class MarketEndpoints
             statusCode: StatusCodes.Status503ServiceUnavailable,
             title: $"{asset} data provider not configured",
             detail: $"No data provider is currently configured for {asset}.");
-
-    private static IResult ProviderError(string asset) =>
-        Results.Problem(
-            statusCode: StatusCodes.Status502BadGateway,
-            title: $"{asset} provider unavailable",
-            detail: $"The data provider could not complete the {asset.ToLowerInvariant()} request.");
-
-    private static IResult InvalidProviderResponse(string asset) =>
-        Results.Problem(
-            statusCode: StatusCodes.Status502BadGateway,
-            title: $"Invalid {asset.ToLowerInvariant()} provider response",
-            detail: $"The data provider returned an invalid {asset.ToLowerInvariant()} response.");
-
-    private static IResult ProviderTimeout(string asset) =>
-        Results.Problem(
-            statusCode: StatusCodes.Status504GatewayTimeout,
-            title: $"{asset} provider timed out",
-            detail: $"The data provider did not respond in time for the {asset.ToLowerInvariant()} request.");
 }

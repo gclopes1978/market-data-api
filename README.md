@@ -81,7 +81,7 @@ As an environment variable, use the double-underscore form: `Providers__Frankfur
 
 - **Rate limiting.** A fixed window per client IP (default 60 requests/minute). Over the limit the API answers `429` with a problem details body and a `Retry-After` header. `/health` is never limited. Behind a reverse proxy (e.g. Azure) all clients share the proxy address until forwarded headers are configured.
 - **Circuit breaker.** Every upstream (Frankfurter, ECB Euribor, ECB bonds, U.S. Treasury, Yahoo Finance, CoinPaprika) has its own breaker. Transport errors, timeouts, 5xx, 408 and 429 count as failures; when half of the calls in a 30 s window fail, the circuit opens for 30 s and requests fail fast with `503`, sparing both the upstream and the caller's latency.
-- **Exception middleware.** `ExceptionHandlingMiddleware` is the safety net around the whole pipeline: open circuit → `503`, timeout → `504`, upstream transport or payload failure → `502`, anything else → a generic `500`. Messages are logged, never returned.
+- **Exception middleware.** `ExceptionHandlingMiddleware` is the single place where provider failures become HTTP responses: open circuit → `503`, timeout → `504`, upstream transport or payload failure → `502`, anything else → a generic `500`. Endpoints do not catch provider exceptions; each route declares the data it serves with `.WithUpstream("Euribor")` and the middleware titles the problem after it (`Euribor provider unavailable`). A new route must declare its upstream (a test enforces it). Messages are logged, never returned.
 
 ## Structure
 
