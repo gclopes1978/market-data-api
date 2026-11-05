@@ -74,16 +74,6 @@ public sealed class ExceptionHandlingMiddlewareTests
     }
 
     [Fact]
-    public async Task Open_circuit_sets_retry_after_from_the_breaker()
-    {
-        var (context, _) = await RunAsync(
-            _ => throw new BrokenCircuitException("open", TimeSpan.FromSeconds(7)));
-
-        Assert.Equal(StatusCodes.Status503ServiceUnavailable, context.Response.StatusCode);
-        Assert.Equal("7", context.Response.Headers["Retry-After"].ToString());
-    }
-
-    [Fact]
     public async Task Client_disconnect_yields_499_without_a_body()
     {
         var context = NewContext();
@@ -122,13 +112,12 @@ public sealed class ExceptionHandlingMiddlewareTests
     public async Task Open_circuit_from_a_provider_is_returned_as_503_by_the_running_api()
     {
         using var factory = new ApiFactory();
-        factory.Fx.Failure = new BrokenCircuitException("open", TimeSpan.FromSeconds(30));
+        factory.Fx.Failure = new BrokenCircuitException("open");
         using var client = factory.CreateClient();
 
         using var response = await client.GetAsync("/api/fx/EUR/USD");
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
-        Assert.True(response.Headers.Contains("Retry-After"));
     }
 
     [Fact]

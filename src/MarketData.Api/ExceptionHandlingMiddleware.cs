@@ -1,8 +1,6 @@
 using System.Diagnostics;
-using System.Globalization;
 using System.Text.Json;
 using System.Xml;
-using Microsoft.Net.Http.Headers;
 using Polly.CircuitBreaker;
 
 namespace MarketData.Api;
@@ -12,7 +10,7 @@ namespace MarketData.Api;
 /// response with a stable status code, instead of a raw 500 or a leaked stack trace.
 /// </summary>
 /// <remarks>
-/// Mapping: open circuit breaker → 503 (+ <c>Retry-After</c>); timeouts → 504; upstream transport or
+/// Mapping: open circuit breaker → 503; timeouts → 504; upstream transport or
 /// payload failures → 502; malformed requests → their own 4xx; client disconnects → 499 (no body);
 /// anything else → a generic 500. Exception messages are logged, never returned to the caller.
 /// </remarks>
@@ -26,8 +24,7 @@ public sealed class ExceptionHandlingMiddleware(
         int Status,
         string Title,
         string Detail,
-        LogLevel Level,
-        TimeSpan? RetryAfter = null);
+        LogLevel Level);
 
     /// <summary>Runs the rest of the pipeline and converts any unhandled exception into a problem details response.</summary>
     public async Task InvokeAsync(HttpContext context)
@@ -57,13 +54,6 @@ public sealed class ExceptionHandlingMiddleware(
 
             context.Response.Clear();
 
-            if (failure.RetryAfter is { } retryAfter)
-            {
-                context.Response.Headers[HeaderNames.RetryAfter] =
-                    Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds))
-                        .ToString(CultureInfo.InvariantCulture);
-            }
-
             await Results.Problem(
                 statusCode: failure.Status,
                 title: failure.Title,
@@ -78,12 +68,11 @@ public sealed class ExceptionHandlingMiddleware(
 
     private static Failure Describe(Exception ex) => ex switch
     {
-        BrokenCircuitException open => new(
+        BrokenCircuitException => new(
             StatusCodes.Status503ServiceUnavailable,
             "Data provider temporarily unavailable",
             "The upstream data provider is failing repeatedly, so the request was not attempted. Try again shortly.",
-            LogLevel.Warning,
-            open.RetryAfter),
+            LogLevel.Warning),
 
         // Polly's TimeoutRejectedException derives from TimeoutException.
         TimeoutException or OperationCanceledException => new(
