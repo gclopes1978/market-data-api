@@ -58,7 +58,7 @@ public sealed class CatalogStockSearchProviderTests : IDisposable
 
         var results = await Search(provider, "acme");
 
-        Assert.Equal(new[] { "AH", "BA", "ZAC" }, results.Select(r => r.Symbol));
+        Assert.Equal(["AH", "BA", "ZAC"], results.Select(r => r.Symbol));
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public sealed class CatalogStockSearchProviderTests : IDisposable
         Assert.Equal("NYSE", beta.ExchangeName);
 
         var alpha = await Search(provider, "alpha");
-        Assert.Equal(new[] { "LSE", "NYSE" }, alpha.Select(r => r.Exchange).Order());
+        Assert.Equal(["LSE", "NYSE"], alpha.Select(r => r.Exchange).Order());
 
         var bravo = Assert.Single(await Search(provider, "bravo"));
         Assert.Null(bravo.Exchange);
@@ -140,7 +140,7 @@ public sealed class CatalogStockSearchProviderTests : IDisposable
     {
         var provider = CreateFrom(Header);
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         await Assert.ThrowsAsync<OperationCanceledException>(() =>
             provider.SearchAsync("ab", cts.Token));
