@@ -13,6 +13,10 @@ public sealed class FrankfurterFxProvider(HttpClient http) : IFxRateProvider
         [property: JsonPropertyName("quote")] string Quote,
         [property: JsonPropertyName("rate")] decimal Rate);
 
+    /// <summary>
+    /// Fetches the exchange rate from Frankfurter. Returns <c>null</c> for an unknown currency or pair;
+    /// other upstream failures surface as <see cref="HttpRequestException"/> or <see cref="System.Text.Json.JsonException"/>.
+    /// </summary>
     public async Task<FxRate?> GetRateAsync(
         string baseCcy,
         string quoteCcy,

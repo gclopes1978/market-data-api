@@ -31,6 +31,10 @@ public sealed class EcbBondQuoteProvider(HttpClient http) : IBondQuoteProvider
             ["EUR30Y"] = "SR_30Y"
         };
 
+    /// <summary>
+    /// Fetches a point of the ECB euro area AAA yield curve. Returns <c>null</c> for any market other than <c>EUR</c>
+    /// or for a maturity the ECB dataset does not publish.
+    /// </summary>
     public async Task<MarketDataEnvelope<BondQuote>?> GetQuoteAsync(
         string market, string identifier, CancellationToken ct)
     {

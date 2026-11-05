@@ -7,6 +7,7 @@ namespace MarketData.Api;
 
 public static class FxEndpoints
 {
+    /// <summary>Maps <c>GET /api/fx/{baseCcy}/{quoteCcy}</c>.</summary>
     public static IEndpointRouteBuilder MapFx(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/fx");

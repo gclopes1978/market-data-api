@@ -22,6 +22,10 @@ internal sealed class TreasuryBondQuoteProvider(HttpClient http)
             ["US30Y"] = "BC_30YEAR"
         };
 
+    /// <summary>
+    /// Fetches a point of the U.S. Treasury par yield curve. Returns <c>null</c> for any market other than <c>US</c>,
+    /// for an unsupported maturity, or when no data was published in the last months searched.
+    /// </summary>
     public async Task<MarketDataEnvelope<BondQuote>?> GetQuoteAsync(
         string market, string identifier, CancellationToken ct)
     {

@@ -14,6 +14,7 @@ internal sealed record YahooMarketQuote(
 
 internal sealed class YahooFinanceClient(HttpClient http)
 {
+    /// <summary>Fetches the latest daily quote of a symbol from the Yahoo chart endpoint; returns <c>null</c> when Yahoo answers 404.</summary>
     public async Task<YahooMarketQuote?> GetQuoteAsync(
         string symbol, CancellationToken ct)
     {
@@ -107,6 +108,7 @@ internal sealed class YahooFinanceClient(HttpClient http)
             asOf);
     }
 
+    /// <summary>Searches equities by free text through the Yahoo Finance search endpoint.</summary>
     public async Task<IReadOnlyList<StockSearchResult>> SearchStocksAsync(string query, CancellationToken ct)
     {
         var path = $"v1/finance/search?q={Uri.EscapeDataString(query)}&quotesCount=100&newsCount=0";

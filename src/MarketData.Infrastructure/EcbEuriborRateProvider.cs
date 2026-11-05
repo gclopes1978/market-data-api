@@ -16,6 +16,10 @@ public sealed class EcbEuriborRateProvider(HttpClient http)
             ["12M"] = "EURIBOR1YD_"
         };
 
+    /// <summary>
+    /// Fetches the latest monthly-average Euribor observation for the tenor from the ECB data portal.
+    /// Throws <see cref="ArgumentException"/> for an unsupported tenor.
+    /// </summary>
     public async Task<MarketDataEnvelope<EuriborRate>?> GetRateAsync(
         string tenor, CancellationToken ct)
     {

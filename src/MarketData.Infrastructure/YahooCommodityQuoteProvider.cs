@@ -20,6 +20,10 @@ internal sealed class YahooCommodityQuoteProvider(
             ["NATGAS"] = new("NG=F", "Natural gas futures", "USD per MMBtu")
         };
 
+    /// <summary>
+    /// Resolves the commodity alias (e.g. <c>GOLD</c>, <c>WTI</c>) to its Yahoo futures symbol and returns its quote;
+    /// returns <c>null</c> for an unknown alias or when Yahoo has no data.
+    /// </summary>
     public async Task<MarketDataEnvelope<CommodityQuote>?> GetQuoteAsync(
         string symbol, CancellationToken ct)
     {

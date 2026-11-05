@@ -11,6 +11,7 @@ internal sealed class CompositeBondQuoteProvider(
     TreasuryBondQuoteProvider treasury,
     EcbBondQuoteProvider ecb) : IBondQuoteProvider
 {
+    /// <summary>Routes the request to the provider that owns the market (<c>US</c> or <c>EUR</c>); returns <c>null</c> for any other market.</summary>
     public Task<MarketDataEnvelope<BondQuote>?> GetQuoteAsync(
         string market, string identifier, CancellationToken ct) =>
         market.ToUpperInvariant() switch
