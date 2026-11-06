@@ -11,6 +11,8 @@ public static partial class MarketEndpoints
     private const int MaxCryptoIdLength = 100;
     private const string DefaultCryptoCurrency = "USD";
 
+    private const string Crypto = "Crypto";
+
     // Fiat currencies offered by the quote endpoint.
     private static readonly HashSet<string> CryptoCurrencies =
         new(StringComparer.OrdinalIgnoreCase)
@@ -65,23 +67,23 @@ public static partial class MarketEndpoints
 
             return Results.Ok(
                 new MarketDataEnvelope<IReadOnlyList<CryptoAsset>>(
-                    assets.ToList(), catalog.Metadata));
+                    [.. assets], catalog.Metadata));
         }
         catch (HttpRequestException)
         {
-            return ProviderError("Crypto");
+            return ProviderError(Crypto);
         }
         catch (JsonException)
         {
-            return InvalidProviderResponse("Crypto");
+            return InvalidProviderResponse(Crypto);
         }
         catch (FormatException)
         {
-            return InvalidProviderResponse("Crypto");
+            return InvalidProviderResponse(Crypto);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            return ProviderTimeout("Crypto");
+            return ProviderTimeout(Crypto);
         }
     }
 
@@ -126,19 +128,19 @@ public static partial class MarketEndpoints
         }
         catch (HttpRequestException)
         {
-            return ProviderError("Crypto");
+            return ProviderError(Crypto);
         }
         catch (JsonException)
         {
-            return InvalidProviderResponse("Crypto");
+            return InvalidProviderResponse(Crypto);
         }
         catch (FormatException)
         {
-            return InvalidProviderResponse("Crypto");
+            return InvalidProviderResponse(Crypto);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            return ProviderTimeout("Crypto");
+            return ProviderTimeout(Crypto);
         }
     }
 

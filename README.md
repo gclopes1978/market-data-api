@@ -66,7 +66,22 @@ The tests do not use the network: the provider interface is replaced by a fake i
 |---|---|
 | `Providers:Frankfurter:BaseUrl` | `https://api.frankfurter.dev/v2/` |
 
+| `RateLimiting:Enabled` | `true` |
+| `RateLimiting:PermitLimit` | `60` requests per client IP per window (`1000` in Development) |
+| `RateLimiting:WindowSeconds` | `60` |
+| `Resilience:CircuitBreaker:Enabled` | `true` |
+| `Resilience:CircuitBreaker:FailureRatio` | `0.5` |
+| `Resilience:CircuitBreaker:MinimumThroughput` | `5` calls in the window before the ratio is evaluated |
+| `Resilience:CircuitBreaker:SamplingDurationSeconds` | `30` |
+| `Resilience:CircuitBreaker:BreakDurationSeconds` | `30` |
+
 As an environment variable, use the double-underscore form: `Providers__Frankfurter__BaseUrl`.
+
+## Resilience and error handling
+
+- **Rate limiting.** A fixed window per client IP (default 60 requests/minute). Over the limit the API answers `429` with a problem details body and a `Retry-After` header. `/health` is never limited. Behind a reverse proxy (e.g. Azure) all clients share the proxy address until forwarded headers are configured.
+- **Circuit breaker.** Every upstream (Frankfurter, ECB Euribor, ECB bonds, U.S. Treasury, Yahoo Finance, CoinPaprika) has its own breaker. Transport errors, timeouts, 5xx, 408 and 429 count as failures; when half of the calls in a 30 s window fail, the circuit opens for 30 s and requests fail fast with `503`, sparing both the upstream and the caller's latency.
+- **Exception middleware.** `ExceptionHandlingMiddleware` is the safety net around the whole pipeline: open circuit → `503`, timeout → `504`, upstream transport or payload failure → `502`, anything else → a generic `500`. Messages are logged, never returned.
 
 ## Structure
 
@@ -85,7 +100,8 @@ As an environment variable, use the double-underscore form: `Providers__Frankfur
 ## Known limitations
 
 - Euribor, bond, stock, ETF, commodity and stock search requests are not cached yet: each request calls the upstream provider.
-- Providers only have timeouts. There are no retries, backoff or circuit breaker.
+- Providers have timeouts and a circuit breaker, but no retries or backoff.
+- The rate limiter is in memory and per instance: with several replicas each one enforces its own budget.
 - The cache is in memory: it is lost on restart and not shared between instances.
 - Stocks, ETFs and commodities use an unofficial Yahoo Finance endpoint that can change or throttle without notice.
 - Only the Frankfurter base URL is configurable; the other provider URLs are fixed in code.

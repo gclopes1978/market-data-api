@@ -43,6 +43,7 @@ public static partial class MarketEndpoints
             "EUR5Y", "EUR7Y", "EUR10Y", "EUR20Y", "EUR30Y"
         };
 
+    /// <summary>Maps the <c>/api</c> market data endpoints: Euribor, bonds, stocks (search and quote), ETFs, commodities and crypto.</summary>
     public static IEndpointRouteBuilder MapMarketData(
         this IEndpointRouteBuilder app)
     {

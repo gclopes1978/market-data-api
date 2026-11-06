@@ -5,6 +5,7 @@ namespace MarketData.Infrastructure;
 internal sealed class YahooEquityQuoteProvider(
     YahooFinanceClient yahoo) : IEquityQuoteProvider
 {
+    /// <summary>Maps a Yahoo Finance chart quote to an <see cref="EquityQuote"/>; returns <c>null</c> when Yahoo does not know the ticker.</summary>
     public async Task<MarketDataEnvelope<EquityQuote>?> GetQuoteAsync(
         string ticker, CancellationToken ct)
     {

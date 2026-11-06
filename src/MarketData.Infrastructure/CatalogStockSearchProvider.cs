@@ -7,15 +7,20 @@ internal sealed class CatalogStockSearchProvider : IStockSearchProvider
 {
     private readonly Lazy<IReadOnlyList<StockSearchResult>> _stocks;
 
+    /// <summary>Creates the provider over the <c>Data/tickers.csv</c> catalog shipped next to the assembly (loaded lazily on first search).</summary>
     public CatalogStockSearchProvider()
         : this(Path.Combine(AppContext.BaseDirectory, "Data", "tickers.csv"))
     {
     }
 
-    // Injectable path so the loader can be tested against temporary CSV files.
+    /// <summary>Creates the provider over a CSV file at <paramref name="path"/>; used by tests to inject temporary catalogs.</summary>
     internal CatalogStockSearchProvider(string path) =>
         _stocks = new(() => LoadStocks(path));
 
+    /// <summary>
+    /// Searches the local catalog by symbol or name (queries shorter than 2 characters return nothing).
+    /// Name prefix matches come first; at most 100 results are returned.
+    /// </summary>
     public Task<IReadOnlyList<StockSearchResult>> SearchAsync(
         string query,
         CancellationToken ct)

@@ -44,6 +44,7 @@ public sealed class CoinPaprikaCryptoProvider(
         [property: JsonPropertyName("last_updated")] DateTimeOffset? LastUpdated,
         [property: JsonPropertyName("quotes")] Dictionary<string, QuoteDto>? Quotes);
 
+    /// <summary>Returns the catalog of active cryptocurrencies ordered by rank, cached for <see cref="CatalogTtl"/>.</summary>
     public async Task<MarketDataEnvelope<IReadOnlyList<CryptoAsset>>> GetAssetsAsync(
         CancellationToken ct)
     {
@@ -83,6 +84,10 @@ public sealed class CoinPaprikaCryptoProvider(
         return envelope;
     }
 
+    /// <summary>
+    /// Returns the latest quote of a coin in <c>USD</c> or <c>EUR</c>, cached for <see cref="QuoteTtl"/>;
+    /// returns <c>null</c> when CoinPaprika does not know the id.
+    /// </summary>
     public async Task<MarketDataEnvelope<CryptoQuote>?> GetQuoteAsync(
         string id,
         string currency,
