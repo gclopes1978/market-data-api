@@ -2,7 +2,7 @@ name: Build and deploy API to Azure Container Apps
 
 on:
   push:
-    branches: 
+    branches:
       - main
       - feature/azure-container-apps-zero-cost
   workflow_dispatch:
@@ -47,21 +47,29 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Generate Docker image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
       - name: Build and publish image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   deploy:
     name: Deploy API container
     needs: build-publish
-     # Only deploy to Azure from main when deployment is explicitly enabled.
+    # Only deploy to Azure from main when deployment is explicitly enabled.
     if: github.ref == 'refs/heads/main' && vars.AZURE_DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     permissions:
