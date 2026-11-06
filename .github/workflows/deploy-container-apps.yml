@@ -2,7 +2,9 @@ name: Build and deploy API to Azure Container Apps
 
 on:
   push:
-    branches: [main]
+    branches: 
+      - main
+      - feature/azure-container-apps-zero-cost
   workflow_dispatch:
 
 permissions:
@@ -59,6 +61,7 @@ jobs:
   deploy:
     name: Deploy API container
     needs: build-publish
+     # Only deploy to Azure from main when deployment is explicitly enabled.
     if: github.ref == 'refs/heads/main' && vars.AZURE_DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     permissions:
