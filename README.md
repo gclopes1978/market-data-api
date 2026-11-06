@@ -109,3 +109,10 @@ As an environment variable, use the double-underscore form: `Providers__Frankfur
 ## Data sources
 
 Rates come from free public providers and may be delayed or change their terms. Do not use this data for trading decisions. Check each provider's terms before exposing the data publicly.
+
+
+## Azure deployment — Consumption with scale to zero
+
+The infrastructure-as-code and deployment guide is in [infra/](infra/README.md). It provisions two Azure Container Apps in the Consumption plan (Spain Central): the .NET 10 API with internal ingress and the React/Nginx frontend with public HTTPS ingress. Both scale from zero and use the same-origin Nginx reverse proxy.
+
+The deployment workflow publishes the API image to GHCR and can update Azure through GitHub OIDC. Deployment remains disabled until the Azure resources are provisioned, the GHCR image package is public, and the repository Actions variables/secrets are configured. See the infrastructure guide for the monthly free grant limits and the important caveat that 0 € is conditional on total subscription usage staying within those limits.
