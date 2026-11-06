@@ -4,6 +4,7 @@ using System.Xml;
 using MarketData.Api;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Polly.CircuitBreaker;
@@ -132,5 +133,46 @@ public sealed class ExceptionHandlingMiddlewareTests
 
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         Assert.DoesNotContain("internal detail", body);
+    }
+
+    public static TheoryData<string, Exception, int, string> NamedFailures => new()
+    {
+        { "Euribor", new HttpRequestException("down"), 502, "Euribor provider unavailable" },
+        { "Bond", new JsonException("bad"), 502, "Invalid bond provider response" },
+        { "Exchange rate", new OperationCanceledException(), 504, "Exchange rate provider timed out" },
+        { "Crypto", new BrokenCircuitException("open"), 503, "Crypto provider temporarily unavailable" }
+    };
+
+    [Theory]
+    [MemberData(nameof(NamedFailures))]
+    public async Task Titles_provider_failures_after_the_upstream_declared_by_the_endpoint(
+        string upstream, Exception failure, int expectedStatus, string expectedTitle)
+    {
+        var context = NewContext();
+        context.SetEndpoint(new Endpoint(
+            requestDelegate: null,
+            new EndpointMetadataCollection(new UpstreamMetadata(upstream)),
+            displayName: "test"));
+
+        var (result, body) = await RunAsync(_ => throw failure, context);
+
+        Assert.Equal(expectedStatus, result.Response.StatusCode);
+        using var json = JsonDocument.Parse(body);
+        Assert.Equal(expectedTitle, json.RootElement.GetProperty("title").GetString());
+    }
+
+    [Fact]
+    public void Every_api_route_declares_its_upstream()
+    {
+        using var factory = new ApiFactory();
+
+        var undeclared = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .OfType<RouteEndpoint>()
+            .Where(e => e.RoutePattern.RawText!.StartsWith("/api", StringComparison.Ordinal))
+            .Where(e => e.Metadata.GetMetadata<UpstreamMetadata>() is null)
+            .Select(e => e.RoutePattern.RawText)
+            .ToList();
+
+        Assert.Empty(undeclared);
     }
 }

@@ -1,6 +1,5 @@
 using MarketData.Core;
 using Microsoft.AspNetCore.Mvc;
-using System.Text.Json;
 
 namespace MarketData.Api;
 
@@ -46,45 +45,26 @@ public static partial class MarketEndpoints
                 $"The limit must be between 1 and {MaxCryptoLimit}.");
         }
 
-        try
-        {
-            var catalog = await provider.GetAssetsAsync(ct);
-            IEnumerable<CryptoAsset> assets = catalog.Data;
+        var catalog = await provider.GetAssetsAsync(ct);
+        IEnumerable<CryptoAsset> assets = catalog.Data;
 
-            if (!string.IsNullOrEmpty(term))
-            {
-                // OrderBy is stable, so after the exact-symbol matches the rank order is kept.
-                assets = assets
-                    .Where(a =>
-                        a.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                        a.Symbol.Contains(term, StringComparison.OrdinalIgnoreCase))
-                    .OrderByDescending(a =>
-                        a.Symbol.Equals(term, StringComparison.OrdinalIgnoreCase));
-            }
+        if (!string.IsNullOrEmpty(term))
+        {
+            // OrderBy is stable, so after the exact-symbol matches the rank order is kept.
+            assets = assets
+                .Where(a =>
+                    a.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    a.Symbol.Contains(term, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(a =>
+                    a.Symbol.Equals(term, StringComparison.OrdinalIgnoreCase));
+        }
 
-            if (limit is { } max)
-                assets = assets.Take(max);
+        if (limit is { } max)
+            assets = assets.Take(max);
 
-            return Results.Ok(
-                new MarketDataEnvelope<IReadOnlyList<CryptoAsset>>(
-                    [.. assets], catalog.Metadata));
-        }
-        catch (HttpRequestException)
-        {
-            return ProviderError(Crypto);
-        }
-        catch (JsonException)
-        {
-            return InvalidProviderResponse(Crypto);
-        }
-        catch (FormatException)
-        {
-            return InvalidProviderResponse(Crypto);
-        }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            return ProviderTimeout(Crypto);
-        }
+        return Results.Ok(
+            new MarketDataEnvelope<IReadOnlyList<CryptoAsset>>(
+                [.. assets], catalog.Metadata));
     }
 
     /// <summary>
@@ -116,32 +96,13 @@ public static partial class MarketEndpoints
                 string.Join(", ", CryptoCurrencies.Order()) + ".");
         }
 
-        try
-        {
-            var result = await provider.GetQuoteAsync(
-                id.ToLowerInvariant(), quoteCurrency, ct);
+        var result = await provider.GetQuoteAsync(
+            id.ToLowerInvariant(), quoteCurrency, ct);
 
-            return result is null
-                ? NotFound("Crypto quote not found",
-                    "No quote was found for the requested cryptocurrency.")
-                : Results.Ok(result);
-        }
-        catch (HttpRequestException)
-        {
-            return ProviderError(Crypto);
-        }
-        catch (JsonException)
-        {
-            return InvalidProviderResponse(Crypto);
-        }
-        catch (FormatException)
-        {
-            return InvalidProviderResponse(Crypto);
-        }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            return ProviderTimeout(Crypto);
-        }
+        return result is null
+            ? NotFound("Crypto quote not found",
+                "No quote was found for the requested cryptocurrency.")
+            : Results.Ok(result);
     }
 
     private static bool IsCryptoId(string value) =>

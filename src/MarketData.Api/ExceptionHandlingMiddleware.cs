@@ -12,7 +12,7 @@ namespace MarketData.Api;
 /// </summary>
 /// <remarks>
 /// Mapping: open circuit breaker → 503; timeouts → 504; upstream transport or
-/// payload failures → 502; malformed requests → their own 4xx; client disconnects → 499 (no body);
+/// payload failures → 502 (titled after the route's <see cref="UpstreamMetadata"/> when it has one); malformed requests → their own 4xx; client disconnects → 499 (no body);
 /// anything else → a generic 500. Exception messages are logged, never returned to the caller.
 /// </remarks>
 public sealed class ExceptionHandlingMiddleware(
@@ -50,7 +50,7 @@ public sealed class ExceptionHandlingMiddleware(
                 return;
             }
 
-            var failure = Describe(ex);
+            var failure = Describe(ex, context.GetEndpoint()?.Metadata.GetMetadata<UpstreamMetadata>()?.Name);
             logger.Log(failure.Level, ex, "Request failed with {StatusCode}: {Title}.", failure.Status, failure.Title);
 
             context.Response.Clear();
@@ -67,46 +67,60 @@ public sealed class ExceptionHandlingMiddleware(
         }
     }
 
-    private static Failure Describe(Exception ex) => ex switch
+    // `asset` comes from the endpoint's UpstreamMetadata; without it the messages stay generic.
+    private static Failure Describe(Exception ex, string? asset)
     {
-        BrokenCircuitException => new(
-            StatusCodes.Status503ServiceUnavailable,
-            "Data provider temporarily unavailable",
-            "The upstream data provider is failing repeatedly, so the request was not attempted. Try again shortly.",
-            LogLevel.Warning),
+        var subject = asset?.ToLowerInvariant();
 
-        // TimeoutRejectedException is Polly's attempt timeout; OperationCanceledException is HttpClient's own
-        // timeout (a client disconnect was already handled above).
-        TimeoutRejectedException or TimeoutException or OperationCanceledException => new(
-            StatusCodes.Status504GatewayTimeout,
-            "Data provider timed out",
-            "The data provider did not respond in time.",
-            LogLevel.Warning),
+        string Title(string generic, string named) => asset is null ? generic : named;
 
-        HttpRequestException => new(
-            StatusCodes.Status502BadGateway,
-            "Data provider unavailable",
-            "The data provider could not complete the request.",
-            LogLevel.Warning),
+        return ex switch
+        {
+            BrokenCircuitException => new(
+                StatusCodes.Status503ServiceUnavailable,
+                Title("Data provider temporarily unavailable", $"{asset} provider temporarily unavailable"),
+                "The upstream data provider is failing repeatedly, so the request was not attempted. Try again shortly.",
+                LogLevel.Warning),
 
-        JsonException or FormatException or XmlException => new(
-            StatusCodes.Status502BadGateway,
-            "Invalid data provider response",
-            "The data provider returned a response that could not be understood.",
-            LogLevel.Warning),
+            // TimeoutRejectedException is Polly's attempt timeout; OperationCanceledException is HttpClient's own
+            // timeout (a client disconnect was already handled above).
+            TimeoutRejectedException or TimeoutException or OperationCanceledException => new(
+                StatusCodes.Status504GatewayTimeout,
+                Title("Data provider timed out", $"{asset} provider timed out"),
+                asset is null
+                    ? "The data provider did not respond in time."
+                    : $"The data provider did not respond in time for the {subject} request.",
+                LogLevel.Warning),
 
-        BadHttpRequestException bad => new(
-            bad.StatusCode,
-            "Bad request",
-            "The request could not be processed.",
-            LogLevel.Information),
+            HttpRequestException => new(
+                StatusCodes.Status502BadGateway,
+                Title("Data provider unavailable", $"{asset} provider unavailable"),
+                asset is null
+                    ? "The data provider could not complete the request."
+                    : $"The data provider could not complete the {subject} request.",
+                LogLevel.Warning),
 
-        _ => new(
-            StatusCodes.Status500InternalServerError,
-            "An unexpected error occurred",
-            "The server failed to process the request.",
-            LogLevel.Error)
-    };
+            JsonException or FormatException or XmlException => new(
+                StatusCodes.Status502BadGateway,
+                Title("Invalid data provider response", $"Invalid {subject} provider response"),
+                asset is null
+                    ? "The data provider returned a response that could not be understood."
+                    : $"The data provider returned an invalid {subject} response.",
+                LogLevel.Warning),
+
+            BadHttpRequestException bad => new(
+                bad.StatusCode,
+                "Bad request",
+                "The request could not be processed.",
+                LogLevel.Information),
+
+            _ => new(
+                StatusCodes.Status500InternalServerError,
+                "An unexpected error occurred",
+                "The server failed to process the request.",
+                LogLevel.Error)
+        };
+    }
 }
 
 /// <summary>Pipeline registration helper for <see cref="ExceptionHandlingMiddleware"/>.</summary>
