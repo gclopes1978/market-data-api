@@ -65,7 +65,7 @@ jobs:
         env:
           MIN_LINE_COVERAGE: "80"
         run: |
-          line=$(grep -oP 'Line coverage: \\K[0-9.]+' coverage/report/Summary.txt | head -1)
+          line=$(grep -oP 'Line coverage: \K[0-9.]+' coverage/report/Summary.txt | head -1)
           echo "Line coverage: ${line}% (minimum ${MIN_LINE_COVERAGE}%)"
           awk -v v="$line" -v min="$MIN_LINE_COVERAGE" 'BEGIN { exit (v + 0 >= min + 0) ? 0 : 1 }'
 
@@ -85,7 +85,7 @@ jobs:
             echo "### Build/test problems (filtered log)"
             echo '```'
             cat build.log test.log 2>/dev/null \
-              | grep -E "error (CS|MSB|NU)[0-9]+|\\[FAIL\\]|Failed |Error Message|Assert\\.|Expected:|Actual:|Stack Trace|   at MarketData" \
+              | grep -E "error (CS|MSB|NU)[0-9]+|\[FAIL\]|Failed |Error Message|Assert\.|Expected:|Actual:|Stack Trace|   at MarketData" \
               | awk '!seen[$0]++' | head -150 || true
             echo '```'
           } > comment.md
