@@ -40,7 +40,9 @@ Errors use RFC 7807 ProblemDetails: `400` invalid input, `404` missing data, `50
 
 ## Run locally
 
-Requires the .NET 10 SDK.
+Requires the **.NET 10 SDK**. The API project targets `net10.0` and the Docker build/runtime images use .NET 10.
+
+Python is not required by the API build, test or runtime workflows.
 
 ```bash
 dotnet restore
