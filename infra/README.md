@@ -1,34 +1,34 @@
-# Azure Container Apps — custo controlado a zero no escalão gratuito
+# Azure Container Apps — Cost-Controlled Deployment Within the Free Tier
 
-A infraestrutura segue a estimativa Azure fornecida: **duas Container Apps no plano Consumption**, região **Spain Central**, uma para a API e outra para o frontend.
+The infrastructure follows the supplied Azure estimate: **two Container Apps on the Consumption plan**, in the **Spain Central** region—one for the API and one for the frontend.
 
-## O que é criado
+## What gets created
 
-- Um Container Apps Environment no plano Consumption.
-- `ca-market-data-api-dev`: API .NET 10, ingress interno, porta 8080.
-- `ca-market-data-web-dev`: React/Vite servido por Nginx, ingress público, porta 80.
-- Uma User Assigned Managed Identity com federação OIDC para os dois repositórios GitHub.
-- Role `Container Apps Contributor` limitada ao Resource Group.
-- Sem App Service Plan, Azure Container Registry, Log Analytics Workspace, Application Insights, NAT Gateway ou perfil Dedicated.
+- One Container Apps Environment on the Consumption plan.
+- `ca-market-data-api-dev`: .NET 10 API, internal ingress, port 8080.
+- `ca-market-data-web-dev`: React/Vite served by Nginx, public ingress, port 80.
+- One User Assigned Managed Identity with OIDC federation for both GitHub repositories.
+- The `Container Apps Contributor` role, scoped to the Resource Group.
+- No App Service Plan, Azure Container Registry, Log Analytics Workspace, Application Insights, NAT Gateway, or Dedicated workload profile.
 
-As duas aplicações usam **0 réplicas mínimas** e no máximo uma réplica cada. O Nginx encaminha `/api` e `/health` para o endereço interno da API, pelo que o browser só comunica com o frontend e não é necessário CORS.
+Both applications use **0 minimum replicas** and a maximum of one replica each. Nginx routes `/api` and `/health` to the API's internal address, so the browser communicates only with the frontend and CORS is not required.
 
-## Atenção ao significado de “0 €”
+## What “€0” actually means
 
-O ficheiro de estimativa indica duas linhas de Azure Container Apps, ambas em Spain Central, cada uma com 1 milhão de pedidos/mês, 20 pedidos simultâneos, 100 ms por pedido e 1 GiB de memória. O total apresentado é 0 €.
+The estimate file lists two Azure Container Apps entries, both in Spain Central, each with 1 million requests per month, 20 concurrent requests, 100 ms per request, and 1 GiB of memory. The displayed total is €0.
 
-A concessão gratuita do Consumption é **partilhada por toda a subscrição e por mês**: 180.000 vCPU-segundos, 360.000 GiB-segundos e 2 milhões de pedidos HTTP. Duas aplicações com 1 milhão de pedidos cada usam todo o plafond gratuito de pedidos, sem margem para outras Container Apps na mesma subscrição. A estimativa não é uma garantia de faturação: consumo acima dos plafonds, tráfego de saída ou outros serviços Azure podem gerar custos.
+The Consumption free grant is **shared across the entire subscription per month**: 180,000 vCPU-seconds, 360,000 GiB-seconds, and 2 million HTTP requests. Two applications with 1 million requests each use the entire free request allowance, leaving no headroom for other Container Apps in the same subscription. The estimate is not a billing guarantee: usage above the free grants, outbound traffic, or other Azure services may incur charges.
 
-Com 0,5 vCPU, 1 GiB e 100 ms por pedido, a aproximação para 2 milhões de pedidos é 100.000 vCPU-segundos e 200.000 GiB-segundos, abaixo dos plafonds de compute. O tempo real de execução, arranques, tráfego e consumo de outros recursos da subscrição podem alterar o resultado.
+At 0.5 vCPU, 1 GiB, and 100 ms per request, the estimate for 2 million requests is approximately 100,000 vCPU-seconds and 200,000 GiB-seconds, which is below the compute allowances. Actual execution time, cold starts, traffic, and usage by other resources in the subscription may change the result.
 
-**Não configurar Dedicated workload profiles, réplicas mínimas acima de zero, VNet própria, Private Endpoint, Log Analytics ou outros serviços pagos.** A configuração de logs é `none` para evitar uma workspace faturável.
+**Do not configure Dedicated workload profiles, minimum replicas above zero, a custom VNet, Private Endpoints, Log Analytics, or other paid services.** The logging configuration is set to `none` to avoid a billable workspace.
 
-## Pré-requisitos e primeira publicação
+## Prerequisites and first deployment
 
-1. Ter uma subscrição Azure ativa e permissões para criar recursos e role assignments no Resource Group.
-2. Fazer merge deste branch para `main`. O workflow da API publica a imagem GHCR; o workflow do frontend já publica a sua imagem GHCR.
-3. Em cada repositório, abrir o package GHCR criado e mudar a visibilidade para **Public**. Isto permite que o Container Apps Consumption descarregue as imagens sem ACR ou credenciais pagas.
-4. Criar o Resource Group e aplicar o Bicep:
+1. Have an active Azure subscription and permissions to create resources and role assignments in the Resource Group.
+2. Merge this branch into `main`. The API workflow publishes the GHCR image; the frontend workflow already publishes its GHCR image.
+3. In each repository, open the created GHCR package and change its visibility to **Public**. This allows Container Apps Consumption to pull the images without ACR or paid credentials.
+4. Create the Resource Group and deploy the Bicep template:
 
 ```bash
 az login
@@ -55,7 +55,7 @@ az deployment group create \
   --parameters infra/dev.bicepparam
 ```
 
-Guardar os outputs:
+Save the deployment outputs:
 
 ```bash
 az deployment group show \
@@ -65,38 +65,38 @@ az deployment group show \
   --output json
 ```
 
-## Configuração GitHub Actions
+## GitHub Actions configuration
 
-Em **ambos** os repositórios, criar estes Actions secrets com os outputs/valores da subscrição:
+In **both** repositories, create the following Actions secrets using the subscription outputs/values:
 
-- `AZURE_CLIENT_ID`: output `githubActionsClientId` do Bicep.
-- `AZURE_TENANT_ID`: output `tenantId`.
-- `AZURE_SUBSCRIPTION_ID`: output `subscriptionId`.
+- `AZURE_CLIENT_ID`: the Bicep `githubActionsClientId` output.
+- `AZURE_TENANT_ID`: the `tenantId` output.
+- `AZURE_SUBSCRIPTION_ID`: the `subscriptionId` output.
 
-Em **ambos** os repositórios, criar estas Actions variables:
+In **both** repositories, create the following Actions variables:
 
 - `AZURE_RESOURCE_GROUP` = `rg-market-data-dev`
-- `AZURE_DEPLOY_ENABLED` = `true` (só depois de a infraestrutura existir e os packages GHCR serem públicos).
+- `AZURE_DEPLOY_ENABLED` = `true` (only after the infrastructure exists and the GHCR packages are public).
 
-Variável adicional por repositório:
+Additional variable per repository:
 
-- API: `AZURE_CONTAINER_APP_NAME` = output `apiContainerAppName`.
-- Web: `AZURE_CONTAINER_APP_NAME` = output `webContainerAppName`.
+- API: `AZURE_CONTAINER_APP_NAME` = the `apiContainerAppName` output.
+- Web: `AZURE_CONTAINER_APP_NAME` = the `webContainerAppName` output.
 
-A federação OIDC confia apenas nos branches `main` dos dois repositórios. Não é necessário PAT GitHub nem segredo de publicação Azure estático. Os workflows usam o `GITHUB_TOKEN` temporário para publicar no GHCR e OIDC para autenticar na Azure.
+OIDC federation trusts only the `main` branches of the two repositories. No GitHub PAT or static Azure publishing secret is required. The workflows use the temporary `GITHUB_TOKEN` to publish to GHCR and OIDC to authenticate with Azure.
 
-## Atualizações
+## Updates
 
-Depois da configuração inicial, cada push para `main` executa testes, constrói a imagem, publica no GHCR e atualiza a respetiva Container App. O deployment fica desativado enquanto `AZURE_DEPLOY_ENABLED` não for `true`.
+After the initial setup, each push to `main` runs tests, builds the image, publishes it to GHCR, and updates the corresponding Container App. Deployment remains disabled until `AZURE_DEPLOY_ENABLED` is set to `true`.
 
-Para verificar réplicas:
+To check replicas:
 
 ```bash
 az containerapp revision list -n ca-market-data-api-dev -g rg-market-data-dev -o table
 az containerapp revision list -n ca-market-data-web-dev -g rg-market-data-dev -o table
 ```
 
-Para eliminar os recursos e evitar consumo futuro:
+To delete the resources and prevent future consumption:
 
 ```bash
 az group delete --name rg-market-data-dev --yes --no-wait
