@@ -1,118 +1,139 @@
-# market-data-api
+# Market Data API
 
-A small .NET 9 Web API that exposes market data (FX rates, Euribor, government bond yields, stocks, ETFs, commodities and crypto) through a facade over free providers, with in-memory caching on part of the endpoints (see Known limitations).
+A .NET 10 minimal Web API that exposes market data (FX rates, Euribor, government bond yields, stocks, ETFs, commodities and crypto) through provider abstractions. It is a read-only facade over public data sources, with in-memory caching for selected endpoints and resilience controls around upstream HTTP calls.
 
-This is an R&D proof of concept, built to explore a Docker-first workflow that is ready to move to Azure while keeping the running cost at zero. It is not intended for production or heavy traffic.
+This is an R&D proof of concept with a Docker-first workflow and an Azure Container Apps deployment path. It is not intended for production or heavy traffic.
 
-## Status
+## Capabilities and status
 
-| Area | State |
+| Area | Implementation |
 |---|---|
-| FX rates (Frankfurter, ECB reference rates) | Done |
-| Euribor (ECB), US Treasury and euro area bond yields | Done |
-| Stocks, ETFs, commodities (Yahoo Finance, unofficial API) | Done |
-| Crypto catalog and quotes (CoinPaprika) | Done |
-| Unit and endpoint tests (no network) | Done |
-| CI (build and test on every PR, Docker smoke test) | Done |
-| Caching for Euribor, bonds, stocks, ETFs and commodities | Planned |
-| Retries and circuit breaker for providers | Planned |
-| Fed rates, EUR short-term rate, global bond market | Planned |
-| Deployment to Azure with Bicep | Planned |
+| FX rates | Frankfurter (ECB reference rates); one-hour in-memory cache |
+| Euribor | ECB monthly average rates for 1M, 3M, 6M and 12M |
+| Government bonds | U.S. Treasury par yield curve and ECB euro-area AAA fitted yield curve |
+| Stocks and ETFs | Yahoo Finance unofficial endpoints |
+| Commodities | Yahoo Finance futures quotes |
+| Crypto catalog and quotes | CoinPaprika; catalog cached for one hour and quotes for 30 seconds |
+| Validation and errors | Input validation and RFC 7807 ProblemDetails |
+| Resilience | Per-upstream circuit breakers, HTTP timeouts and client-IP rate limiting |
+| Automated checks | .NET build/tests, line-coverage threshold and Docker health smoke test |
+| Deployment | Docker image to GHCR; optional Azure Container Apps deployment via OIDC |
 
-## Endpoints
+## API endpoints
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/api/fx/{base}/{quote}` | Latest rate for a currency pair |
-| GET | `/api/euribor/{tenor}` | Euribor monthly average (`1M`, `3M`, `6M`, `12M`) |
-| GET | `/api/bonds/{market}/{identifier}` | Government bond yield. `US`: `US1M`...`US30Y` (U.S. Treasury). `EUR`: `EUR3M`...`EUR30Y` (ECB euro area AAA yield curve, a fitted curve rather than a single bond). `GLOBAL` has no provider yet (503) |
-| GET | `/api/stocks/{ticker}`, `/api/etfs/{ticker}` | Quote for a stock or ETF (Yahoo Finance symbols, e.g. `AAPL`, `SPY`, `VWCE.DE`) |
+| GET | `/api/fx/{base}/{quote}` | Latest rate for a three-letter currency pair |
+| GET | `/api/euribor/{tenor}` | ECB monthly-average Euribor (`1M`, `3M`, `6M`, `12M`) |
+| GET | `/api/bonds/{market}/{identifier}` | Government yield: `US` accepts `US1M`…`US30Y`; `EUR` accepts `EUR3M`…`EUR30Y`; `GLOBAL` currently has no provider and returns `503` |
+| GET | `/api/stocks/search?q={query}` | Search stocks by company name or ticker |
+| GET | `/api/stocks/{ticker}` | Stock quote (Yahoo Finance symbols such as `AAPL`) |
+| GET | `/api/etfs/{ticker}` | ETF quote (for example `SPY`, `VWCE.DE`) |
 | GET | `/api/commodities/{symbol}` | Commodity futures quote |
-| GET | `/api/crypto` | All active cryptocurrencies ordered by market-cap rank (CoinPaprika, no API key). Optional `q` (name or symbol) and `limit` (1-1000). Each item has the `id` used by the quote endpoint |
-| GET | `/api/crypto/{id}` | Latest quote of one cryptocurrency (`id` as listed above, e.g. `btc-bitcoin`). Optional `currency`: `USD` (default) or `EUR`. Returns price, 24h change, 24h volume and market cap |
-| GET | `/health` | Liveness check |
+| GET | `/api/crypto?q={query}&limit={limit}` | Active CoinPaprika assets, optionally filtered by name/symbol; limit is 1–1000 |
+| GET | `/api/crypto/{id}?currency={USD|EUR}` | Crypto quote in USD (default) or EUR; use the provider ID returned by the catalog |
+| GET | `/health` | Liveness/health endpoint |
 
-Errors use RFC 7807 ProblemDetails: `400` invalid input, `404` not found, `502` provider failure or invalid provider response, `503` no provider for the requested market (e.g. `GLOBAL` bonds), `504` provider timeout.
+Most market-data endpoints return an envelope with `data` and `metadata` (source and observation date). FX returns a flat rate object.
+
+Errors use RFC 7807 ProblemDetails: `400` invalid input, `404` missing data, `502` upstream transport/payload failure, `503` open circuit or unsupported market, and `504` upstream timeout. Rate-limit responses use `429` and include `Retry-After`.
+
+## Run locally
+
+Requires the **.NET 10 SDK**. The API project targets `net10.0` and the Docker build/runtime images use .NET 10.
+
+Python is not required by the API build, test or runtime workflows.
+
+```bash
+dotnet restore
+dotnet run --project src/MarketData.Api
+```
+
+The API listens on the ASP.NET Core development URL printed by `dotnet run`. For the common local frontend setup, configure the API to listen on port `7013`.
 
 ## Run with Docker
 
-```powershell
-docker build -t marketdata-api .
-docker run --rm --name marketdata-api -p 8080:8080 marketdata-api
+```bash
+docker build -t market-data-api .
+docker run --rm --name market-data-api -p 8080:8080 market-data-api
 ```
 
-```powershell
+Then check:
+
+```bash
 curl http://localhost:8080/health
 curl http://localhost:8080/api/fx/EUR/USD
 ```
 
-## Run locally
-
-```powershell
-dotnet run --project src/MarketData.Api
-```
-
 ## Test
 
-```powershell
+```bash
 dotnet test
 ```
 
-The tests do not use the network: the provider interface is replaced by a fake in the endpoint tests, and the HTTP handler is stubbed in the provider tests.
+Tests are designed not to depend on live data providers: endpoint tests use fake provider implementations and provider tests use stubbed HTTP handlers.
 
 ## Configuration
 
-| Key | Default |
+| Setting | Default / purpose |
 |---|---|
 | `Providers:Frankfurter:BaseUrl` | `https://api.frankfurter.dev/v2/` |
-
 | `RateLimiting:Enabled` | `true` |
 | `RateLimiting:PermitLimit` | `60` requests per client IP per window (`1000` in Development) |
 | `RateLimiting:WindowSeconds` | `60` |
 | `Resilience:CircuitBreaker:Enabled` | `true` |
 | `Resilience:CircuitBreaker:FailureRatio` | `0.5` |
-| `Resilience:CircuitBreaker:MinimumThroughput` | `5` calls in the window before the ratio is evaluated |
+| `Resilience:CircuitBreaker:MinimumThroughput` | `5` calls before evaluating the ratio |
 | `Resilience:CircuitBreaker:SamplingDurationSeconds` | `30` |
 | `Resilience:CircuitBreaker:BreakDurationSeconds` | `30` |
 
-As an environment variable, use the double-underscore form: `Providers__Frankfurter__BaseUrl`.
+Use double underscores for environment variables, for example `Providers__Frankfurter__BaseUrl`.
 
-## Resilience and error handling
+## Architecture
 
-- **Rate limiting.** A fixed window per client IP (default 60 requests/minute). Over the limit the API answers `429` with a problem details body and a `Retry-After` header. `/health` is never limited. Behind a reverse proxy (e.g. Azure) all clients share the proxy address until forwarded headers are configured.
-- **Circuit breaker.** Every upstream (Frankfurter, ECB Euribor, ECB bonds, U.S. Treasury, Yahoo Finance, CoinPaprika) has its own breaker. Transport errors, timeouts, 5xx, 408 and 429 count as failures; when half of the calls in a 30 s window fail, the circuit opens for 30 s and requests fail fast with `503`, sparing both the upstream and the caller's latency.
-- **Exception middleware.** `ExceptionHandlingMiddleware` is the single place where provider failures become HTTP responses: open circuit → `503`, timeout → `504`, upstream transport or payload failure → `502`, anything else → a generic `500`. Endpoints do not catch provider exceptions; each route declares the data it serves with `.WithUpstream("Euribor")` and the middleware titles the problem after it (`Euribor provider unavailable`). A new route must declare its upstream (a test enforces it). Messages are logged, never returned.
+- `src/MarketData.Api`: minimal API route mapping, input validation, rate limiting and ProblemDetails middleware.
+- `src/MarketData.Core`: provider interfaces and API response contracts.
+- `src/MarketData.Infrastructure`: typed HTTP clients, provider implementations, dependency-injection registration, caching decorators and circuit-breaker configuration.
+- `tests/MarketData.Tests`: endpoint, provider and registration tests using fakes/stubs.
 
-## Structure
+The API is intentionally a read facade with light layering. Provider interfaces isolate upstream services so implementations can be replaced without changing route handlers. FX uses a one-hour memory cache; CoinPaprika's catalog uses one hour and individual quotes use 30 seconds. Other market endpoints currently call their upstream on each request.
 
-- `src/MarketData.Api`: minimal API endpoints and ProblemDetails mapping.
-- `src/MarketData.Core`: provider interfaces and response contracts.
-- `src/MarketData.Infrastructure`: provider implementations (Frankfurter, ECB, U.S. Treasury, Yahoo Finance, CoinPaprika), the FX caching decorator and DI wiring.
-- `tests/MarketData.Tests`: endpoint tests with fake providers and provider tests with stubbed HTTP handlers.
+Each upstream has an independent circuit breaker. Transport errors, timeouts, 5xx, 408 and 429 responses count as failures. The exception middleware maps upstream failures centrally; route mappings declare their upstream with `.WithUpstream(...)`. The fixed-window rate limiter and cache are in-memory and therefore per process/instance.
 
-## Design decisions
+## CI/CD
 
-- **Minimal API with light layering.** The system is a read facade with no business rules yet, so a full Clean Architecture or domain model would be ceremony. If rules appear (alerts, portfolios, regulated rounding), an application layer and a domain model are introduced then.
-- **Provider abstraction with caching where it exists today.** Free tiers have small quotas, so some endpoints are served from an in-memory cache and the upstream is only called on a miss: FX rates (1 hour), the crypto catalog (1 hour) and crypto quotes (30 seconds). Swapping a provider only touches the infrastructure project.
-- **Cost first.** Free providers, free CI, and a free-tier Azure target. Spending decisions are documented before being made.
-- **Protected `main`.** Changes go through pull requests, and the CI check must pass before merging.
+Workflows live in `.github/workflows/`:
+
+### Pull-request and main-branch validation — `ci.yml`
+
+Runs for pull requests targeting `main` and pushes to `main`.
+
+1. **Build and test**: restore, Release build, tests with Cobertura coverage, and a Markdown coverage summary in the GitHub Actions run summary.
+2. **Coverage gate**: fails the job when line coverage is below 80%.
+3. **PR feedback**: on pull requests, attempts to publish the coverage summary and filtered build/test failures as a PR comment. Commenting is best-effort so fork PRs with read-only tokens can still complete validation.
+4. **Docker smoke test**: builds the production image, starts it, polls `/health`, prints logs on failure and always removes the container.
+
+The workflow requests read-only repository contents by default; the build/test job grants pull-request write permission only for its optional PR comment.
+
+### Image publishing and Azure deployment — `deploy-container-apps.yml`
+
+Runs on pushes to `main` and `feature/azure-container-apps-zero-cost`, or manually through `workflow_dispatch`.
+
+1. Restores and tests the .NET solution.
+2. Builds and publishes the API image to GHCR, tagged with the commit SHA and, on the default branch, `latest`.
+3. Deploys only when the ref is `main` and `AZURE_DEPLOY_ENABLED=true`. Azure authentication uses GitHub OIDC; the deployment job needs the configured Azure client, tenant and subscription secrets plus resource-group and Container App variables.
+
+The deployment workflow can publish an image from the feature branch, but that branch does not satisfy the deploy job's `main` condition. A successful CI run does not itself mean an Azure deployment occurred.
+
+## Azure deployment
+
+Infrastructure-as-code and setup guidance are in [infra/README.md](infra/README.md). The Bicep setup targets Azure Container Apps Consumption in Spain Central, with internal API ingress and a public frontend reverse proxy. Deployment remains disabled until resources, GHCR package visibility and GitHub Actions configuration are ready. The zero-cost objective depends on remaining within the Azure free-grant limits.
 
 ## Known limitations
 
-- Euribor, bond, stock, ETF, commodity and stock search requests are not cached yet: each request calls the upstream provider.
-- Providers have timeouts and a circuit breaker, but no retries or backoff.
-- The rate limiter is in memory and per instance: with several replicas each one enforces its own budget.
-- The cache is in memory: it is lost on restart and not shared between instances.
-- Stocks, ETFs and commodities use an unofficial Yahoo Finance endpoint that can change or throttle without notice.
-- Only the Frankfurter base URL is configurable; the other provider URLs are fixed in code.
-
-## Data sources
-
-Rates come from free public providers and may be delayed or change their terms. Do not use this data for trading decisions. Check each provider's terms before exposing the data publicly.
-
-
-## Azure deployment — Consumption with scale to zero
-
-The infrastructure-as-code and deployment guide is in [infra/](infra/README.md). It provisions two Azure Container Apps in the Consumption plan (Spain Central): the .NET 10 API with internal ingress and the React/Nginx frontend with public HTTPS ingress. Both scale from zero and use the same-origin Nginx reverse proxy.
-
-The deployment workflow publishes the API image to GHCR and can update Azure through GitHub OIDC. Deployment remains disabled until the Azure resources are provisioned, the GHCR image package is public, and the repository Actions variables/secrets are configured. See the infrastructure guide for the monthly free grant limits and the important caveat that 0 € is conditional on total subscription usage staying within those limits.
+- Only FX, the crypto catalog and crypto quotes are cached; the cache is process-local and is lost on restart.
+- Rate limiting is process-local, so multiple replicas enforce separate budgets.
+- There are timeouts and circuit breakers, but no retry/backoff policy.
+- Stocks, ETFs and commodities rely on unofficial Yahoo Finance endpoints that may change or throttle.
+- Frankfurter is the only provider base URL currently configurable.
+- Public market data may be delayed and provider terms can change. Do not use this data as the sole basis for trading decisions.
