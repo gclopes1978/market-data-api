@@ -1,4 +1,5 @@
-
+# Continuous integration for pull requests into main and pushes to main.
+# This workflow validates source and the runnable container; it does not publish an image.
 name: CI
 
 on:
@@ -7,7 +8,7 @@ on:
   push:
     branches: [main]
 
-# Least privilege
+# Least privilege at workflow scope. The build-test job adds PR write access only for its report comment.
 permissions:
   contents: read
 
@@ -18,7 +19,7 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
-      pull-requests: write # lets the job post the coverage summary on the PR
+      pull-requests: write # required only for the optional coverage/failure comment below
     defaults:
       run:
         shell: bash
@@ -32,18 +33,21 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      # Restore once, then build Release binaries reused by the test command.
       - name: Restore
         run: dotnet restore
 
       - name: Build
         run: dotnet build --no-restore --configuration Release 2>&1 | tee build.log
 
+      # Collect Cobertura output so the next steps can publish a readable summary and enforce a threshold.
       - name: Test (with coverage)
         run: >
           dotnet test --no-build --configuration Release
           --collect:"XPlat Code Coverage" --results-directory ./coverage
           2>&1 | tee test.log
 
+      # always() preserves diagnostics even when build/test fails; the summary is also attached to the run.
       - name: Coverage report
         if: always()
         run: |
@@ -56,14 +60,16 @@ jobs:
             -reporttypes:"MarkdownSummaryGithub;TextSummary"
           cat coverage/report/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
 
+      # Treat coverage as a quality gate, not just a metric displayed in the job summary.
       - name: Enforce minimum line coverage
         env:
           MIN_LINE_COVERAGE: "80"
         run: |
-          line=$(grep -oP 'Line coverage: \K[0-9.]+' coverage/report/Summary.txt | head -1)
+          line=$(grep -oP 'Line coverage: \\K[0-9.]+' coverage/report/Summary.txt | head -1)
           echo "Line coverage: ${line}% (minimum ${MIN_LINE_COVERAGE}%)"
           awk -v v="$line" -v min="$MIN_LINE_COVERAGE" 'BEGIN { exit (v + 0 >= min + 0) ? 0 : 1 }'
 
+      # Fork PRs may not receive a write token; keep reporting best-effort without masking test results.
       - name: Comment coverage and failures on the PR
         if: always() && github.event_name == 'pull_request'
         continue-on-error: true # forks get a read-only token
@@ -79,7 +85,7 @@ jobs:
             echo "### Build/test problems (filtered log)"
             echo '```'
             cat build.log test.log 2>/dev/null \
-              | grep -E "error (CS|MSB|NU)[0-9]+|\[FAIL\]|Failed |Error Message|Assert\.|Expected:|Actual:|Stack Trace|   at MarketData" \
+              | grep -E "error (CS|MSB|NU)[0-9]+|\\[FAIL\\]|Failed |Error Message|Assert\\.|Expected:|Actual:|Stack Trace|   at MarketData" \
               | awk '!seen[$0]++' | head -150 || true
             echo '```'
           } > comment.md
@@ -95,9 +101,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      # Exercise the same Dockerfile used for deployment, not a separate test-only image.
       - name: Build Docker image
         run: docker build --pull --tag market-data-api:smoke .
 
+      # Bind only to loopback on the runner; no external port is exposed.
       - name: Start container
         run: |
           docker run --detach \
@@ -105,6 +113,7 @@ jobs:
             --publish 127.0.0.1:18080:8080 \
             market-data-api:smoke
 
+      # Wait up to 60 seconds for ASP.NET Core to become healthy.
       - name: Smoke test health endpoint
         shell: bash
         run: |
@@ -130,6 +139,7 @@ jobs:
         if: failure()
         run: docker logs market-data-api-smoke || true
 
+      # Cleanup also runs after a failed smoke test.
       - name: Remove container
         if: always()
         run: docker rm --force market-data-api-smoke || true
