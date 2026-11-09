@@ -26,7 +26,7 @@ At 0.5 vCPU, 1 GiB, and 100 ms per request, the estimate for 2 million requests 
 ## Prerequisites and first deployment
 
 1. Have an active Azure subscription and permissions to create resources and role assignments in the Resource Group.
-2. Merge this branch into `main`. The API workflow publishes the GHCR image; the frontend workflow already publishes its GHCR image.
+2. Make sure the code is on `main`. The API workflow publishes the GHCR image; the frontend workflow already publishes its GHCR image.
 3. In each repository, open the created GHCR package and change its visibility to **Public**. This allows Container Apps Consumption to pull the images without ACR or paid credentials.
 4. Create the Resource Group and deploy the Bicep template:
 
@@ -87,7 +87,7 @@ OIDC federation trusts only the `main` branches of the two repositories. No GitH
 
 ## Updates
 
-After the initial setup, each push to `main` runs tests, builds the image, publishes it to GHCR, and updates the corresponding Container App. Deployment remains disabled until `AZURE_DEPLOY_ENABLED` is set to `true`.
+After the initial setup, each push to `main` runs tests, builds the image, publishes it to GHCR, and updates the corresponding Container App. Automatic deployment runs only while the `AZURE_DEPLOY_ENABLED` variable is set to `true`.
 
 To check replicas:
 

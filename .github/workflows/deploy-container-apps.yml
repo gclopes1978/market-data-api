@@ -1,11 +1,10 @@
-# Build and publish the API container on selected branch pushes; Azure deployment is main-only and opt-in.
+# Build and publish the API container on pushes to main; Azure deployment is main-only and opt-in.
 name: Build and deploy API to Azure Container Apps
 
 on:
   push:
     branches:
       - main
-      - feature/azure-container-apps-zero-cost
   workflow_dispatch:
 
 # The workflow needs repository read access; individual jobs add package or OIDC permissions as needed.
