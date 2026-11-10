@@ -2,7 +2,7 @@
 
 A .NET 10 minimal Web API that exposes market data (FX rates, Euribor, government bond yields, stocks, ETFs, commodities and crypto) through provider abstractions. It is a read-only facade over public data sources, with in-memory caching for selected endpoints and resilience controls around upstream HTTP calls.
 
-This is an R&D proof of concept with a Docker-first workflow and an Azure Container Apps deployment path. It is not intended for production or heavy traffic.
+This is an R&D proof of concept with a Docker-first workflow and a live Azure Container Apps deployment (Consumption plan, Spain Central). It is not intended for production or heavy traffic.
 
 ## Capabilities and status
 
@@ -17,7 +17,7 @@ This is an R&D proof of concept with a Docker-first workflow and an Azure Contai
 | Validation and errors | Input validation and RFC 7807 ProblemDetails |
 | Resilience | Per-upstream circuit breakers, HTTP timeouts and client-IP rate limiting |
 | Automated checks | .NET build/tests, line-coverage threshold and Docker health smoke test |
-| Deployment | Docker image to GHCR; optional Azure Container Apps deployment via OIDC |
+| Deployment | Docker image to GHCR; deployed to Azure Container Apps (Spain Central) and updated through GitHub OIDC |
 
 ## API endpoints
 
@@ -117,17 +117,17 @@ The workflow requests read-only repository contents by default; the build/test j
 
 ### Image publishing and Azure deployment — `deploy-container-apps.yml`
 
-Runs on pushes to `main` and `feature/azure-container-apps-zero-cost`, or manually through `workflow_dispatch`.
+Runs on pushes to `main`, or manually through `workflow_dispatch`.
 
 1. Restores and tests the .NET solution.
 2. Builds and publishes the API image to GHCR, tagged with the commit SHA and, on the default branch, `latest`.
 3. Deploys only when the ref is `main` and `AZURE_DEPLOY_ENABLED=true`. Azure authentication uses GitHub OIDC; the deployment job needs the configured Azure client, tenant and subscription secrets plus resource-group and Container App variables.
 
-The deployment workflow can publish an image from the feature branch, but that branch does not satisfy the deploy job's `main` condition. A successful CI run does not itself mean an Azure deployment occurred.
+A successful CI run does not by itself mean an Azure deployment occurred: the deploy job requires the `main` ref and `AZURE_DEPLOY_ENABLED=true`.
 
 ## Azure deployment
 
-Infrastructure-as-code and setup guidance are in [infra/README.md](infra/README.md). The Bicep setup targets Azure Container Apps Consumption in Spain Central, with internal API ingress and a public frontend reverse proxy. Deployment remains disabled until resources, GHCR package visibility and GitHub Actions configuration are ready. The zero-cost objective depends on remaining within the Azure free-grant limits.
+Infrastructure-as-code and setup guidance are in [infra/README.md](infra/README.md). The application is deployed to Azure Container Apps (Consumption plan, scale to zero) in Spain Central and provisioned with Bicep: the API has internal ingress and the frontend is the public entry point, acting as a reverse proxy to the API. GitHub Actions deploys through OIDC whenever `AZURE_DEPLOY_ENABLED` is `true`. The zero-cost objective depends on remaining within the Azure free-grant limits.
 
 ## Known limitations
 
